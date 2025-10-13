@@ -16,6 +16,11 @@ export function useCanvas(canvasId: string = 'default') {
 
   // Load objects from Supabase
   const loadObjects = useCallback(async () => {
+    if (!user) {
+      console.log('⏳ User not authenticated yet, skipping object load')
+      return
+    }
+
     try {
       console.log('📥 Loading canvas objects...')
       const { data, error } = await supabase
@@ -34,7 +39,7 @@ export function useCanvas(canvasId: string = 'default') {
     } catch (error) {
       console.error('❌ Failed to load objects:', error)
     }
-  }, [canvasId])
+  }, [canvasId, user])
 
   // Create new rectangle
   const createRectangle = useCallback(async (payload: CreateObjectPayload) => {
@@ -125,6 +130,7 @@ export function useCanvas(canvasId: string = 'default') {
 
     try {
       console.log('🗑️ Deleting objects:', objectIds)
+      
       const { error } = await supabase
         .from('canvas_objects')
         .delete()
@@ -145,6 +151,7 @@ export function useCanvas(canvasId: string = 'default') {
       }))
     } catch (error) {
       console.error('❌ Failed to delete objects:', error)
+      console.error('❌ Full error:', error)
     }
   }, [user])
 

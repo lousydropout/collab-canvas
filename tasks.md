@@ -140,6 +140,7 @@ collabcanvas/
 * [x] Delete and duplicate
 * [x] Update positions in DB
 * [x] Fix event bubbling and canvas shifting issues
+* [x] Fix RLS policies for collaborative delete/update permissions
 
 ---
 
