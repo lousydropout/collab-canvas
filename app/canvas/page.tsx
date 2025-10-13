@@ -72,9 +72,9 @@ export default function CanvasPage() {
         />
         
         {/* Canvas */}
-        <main className="flex-1 bg-gray-50">
+        <main className="flex-1 bg-gray-50 min-w-0">
           <Canvas 
-            className="h-screen" 
+            className="w-full h-full" 
             currentTool={currentTool}
             onToolChange={setCurrentTool}
           />

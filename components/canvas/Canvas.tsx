@@ -31,10 +31,20 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current
-        setDimensions({
-          width: clientWidth,
-          height: clientHeight,
+        const rect = containerRef.current.getBoundingClientRect()
+        const newWidth = Math.floor(rect.width)
+        const newHeight = Math.floor(rect.height)
+        
+        // Only update if dimensions actually changed (prevent feedback loops)
+        setDimensions(prev => {
+          if (Math.abs(prev.width - newWidth) > 1 || Math.abs(prev.height - newHeight) > 1) {
+            console.log(`📐 Canvas dimensions updated: ${newWidth}x${newHeight} (was ${prev.width}x${prev.height})`)
+            return {
+              width: newWidth,
+              height: newHeight,
+            }
+          }
+          return prev
         })
       }
     }
@@ -42,14 +52,15 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     // Initial size
     updateDimensions()
 
-    // Handle resize
-    const resizeObserver = new ResizeObserver(updateDimensions)
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current)
+    // Use window resize instead of ResizeObserver to avoid feedback loops
+    const handleWindowResize = () => {
+      updateDimensions()
     }
 
+    window.addEventListener('resize', handleWindowResize)
+    
     return () => {
-      resizeObserver.disconnect()
+      window.removeEventListener('resize', handleWindowResize)
     }
   }, [])
 
@@ -139,7 +150,8 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   return (
     <div 
       ref={containerRef} 
-      className={`w-full h-full min-h-[600px] ${className}`}
+      className={`w-full h-full max-w-full max-h-full overflow-hidden ${className}`}
+      style={{ minHeight: '600px' }}
     >
       <CanvasStage 
         width={dimensions.width} 

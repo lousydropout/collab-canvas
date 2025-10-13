@@ -126,7 +126,12 @@ export default function CanvasStage({
         onTap={onStageClick}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+        style={{ 
+          cursor: isDragging ? 'grabbing' : 'grab',
+          display: 'block',
+          maxWidth: '100%',
+          maxHeight: '100%'
+        }}
       >
         <Layer>
           {children}
