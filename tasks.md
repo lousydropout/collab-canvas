@@ -139,6 +139,7 @@ collabcanvas/
 * [x] Multi-select (Shift+click)
 * [x] Delete and duplicate
 * [x] Update positions in DB
+* [x] Fix event bubbling and canvas shifting issues
 
 ---
 
