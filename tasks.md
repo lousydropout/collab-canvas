@@ -90,17 +90,18 @@ collabcanvas/
 
 ## 🧩 Pull Request Progress
 
-### **PR #1: Project Setup & Authentication** ✅
+### **PR #1: Project Setup & Authentication** 🚧
 
 **Goal:** Initialize project with authentication.
 
-* [ ] Initialize Next.js project with Bun
-* [ ] Install dependencies (Tailwind, shadcn/ui, Supabase, Konva)
-* [ ] Configure Supabase project and `.env`
+* [x] Initialize Next.js project with Bun
+* [x] Install dependencies (Tailwind, shadcn/ui, Supabase, Konva)  
+* [x] Configure Supabase project and `.env`
+* [x] Set up Git repository
+* [x] Deploy to Vercel (initial deployment)
 * [ ] Create `users` schema
 * [ ] Build auth UI (login/register)
 * [ ] Add protected routes
-* [ ] Deploy to Vercel
 
 ---
 
@@ -244,7 +245,7 @@ collabcanvas/
 * [ ] Multiplayer cursors with labels
 * [ ] Online presence list
 * [ ] Auth with display names
-* [ ] Public deployment
+* [x] Public deployment
 * [ ] Ownership system prevents conflicts
 * [ ] State persists
 
