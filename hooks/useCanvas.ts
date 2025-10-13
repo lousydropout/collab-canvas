@@ -119,6 +119,79 @@ export function useCanvas(canvasId: string = 'default') {
     setState(prev => ({ ...prev, selectedObjects: objectIds }))
   }, [])
 
+  // Delete objects
+  const deleteObjects = useCallback(async (objectIds: string[]) => {
+    if (!user || objectIds.length === 0) return
+
+    try {
+      console.log('🗑️ Deleting objects:', objectIds)
+      const { error } = await supabase
+        .from('canvas_objects')
+        .delete()
+        .in('id', objectIds)
+
+      if (error) {
+        console.error('❌ Error deleting objects:', error)
+        return
+      }
+
+      console.log('✅ Objects deleted')
+      
+      // Update local state
+      setState(prev => ({
+        ...prev,
+        objects: prev.objects.filter(obj => !objectIds.includes(obj.id)),
+        selectedObjects: [],
+      }))
+    } catch (error) {
+      console.error('❌ Failed to delete objects:', error)
+    }
+  }, [user])
+
+  // Duplicate objects
+  const duplicateObjects = useCallback(async (objectIds: string[]) => {
+    if (!user || objectIds.length === 0) return
+
+    try {
+      console.log('📋 Duplicating objects:', objectIds)
+      const objectsToDuplicate = state.objects.filter(obj => objectIds.includes(obj.id))
+      
+      const duplicatedObjects = objectsToDuplicate.map(obj => ({
+        canvas_id: canvasId,
+        type: obj.type,
+        x: obj.x + 20, // Offset by 20px
+        y: obj.y + 20,
+        width: obj.width,
+        height: obj.height,
+        color: obj.color,
+        rotation: obj.rotation,
+        owner: 'all',
+        created_by: user.id,
+      }))
+
+      const { data, error } = await supabase
+        .from('canvas_objects')
+        .insert(duplicatedObjects)
+        .select('*')
+
+      if (error) {
+        console.error('❌ Error duplicating objects:', error)
+        return
+      }
+
+      console.log('✅ Objects duplicated:', data)
+      
+      // Update local state and select duplicated objects
+      setState(prev => ({
+        ...prev,
+        objects: [...prev.objects, ...data],
+        selectedObjects: data.map(obj => obj.id),
+      }))
+    } catch (error) {
+      console.error('❌ Failed to duplicate objects:', error)
+    }
+  }, [user, canvasId, state.objects])
+
   // Set tool
   const setTool = useCallback((tool: CanvasState['tool']) => {
     console.log('🔧 Tool changed to:', tool)
@@ -138,6 +211,8 @@ export function useCanvas(canvasId: string = 'default') {
     state,
     createRectangle,
     updateObject,
+    deleteObjects,
+    duplicateObjects,
     selectObjects,
     setTool,
     loadObjects,

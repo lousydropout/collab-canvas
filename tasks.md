@@ -129,16 +129,16 @@ collabcanvas/
 
 ---
 
-### **PR #4: Object Selection & Transformation** 🔧
+### **PR #4: Object Selection & Transformation** ✅
 
 **Goal:** Move, resize, select, and delete objects.
 
-* [ ] Add click-to-select
-* [ ] Add Konva Transformer
-* [ ] Implement drag-to-move
-* [ ] Multi-select (Shift+click)
-* [ ] Delete and duplicate
-* [ ] Update positions in DB
+* [x] Add click-to-select
+* [x] Add Konva Transformer
+* [x] Implement drag-to-move
+* [x] Multi-select (Shift+click)
+* [x] Delete and duplicate
+* [x] Update positions in DB
 
 ---
 

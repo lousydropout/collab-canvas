@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import CanvasStage from './CanvasStage'
 import Grid from './Grid'
 import Rectangle from './Rectangle'
+import KonvaTransformer from './Transformer'
 import { useCanvas } from '@/hooks/useCanvas'
 import { CanvasState } from '@/types/canvas'
 
@@ -20,7 +21,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
 
-  const { state, createRectangle, updateObject, selectObjects, setTool } = useCanvas()
+  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool } = useCanvas()
 
   // Sync tool state
   useEffect(() => {
@@ -66,6 +67,13 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
 
   // Handle canvas click for rectangle creation
   const handleCanvasClick = useCallback((e: any) => {
+    // Only handle clicks on the stage itself (not on shapes)
+    const clickedOnEmpty = e.target === e.target.getStage()
+    
+    if (!clickedOnEmpty) {
+      return
+    }
+    
     const stage = e.target.getStage()
     const pos = stage.getPointerPosition()
     
@@ -126,12 +134,67 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     }
   }, [isCreatingRect, creatingRect, createRectangle, onToolChange])
 
-  // Handle object selection
-  const handleObjectSelect = useCallback((objectId: string) => {
+  // Handle object selection (with multi-select support)
+  const handleObjectSelect = useCallback((objectId: string, event?: any) => {
     if (currentTool === 'select') {
-      selectObjects([objectId])
+      const isShiftClick = event?.evt?.shiftKey || false
+      
+      if (isShiftClick) {
+        // Multi-select: add/remove from selection
+        const currentSelection = state.selectedObjects
+        if (currentSelection.includes(objectId)) {
+          // Remove from selection
+          const newSelection = currentSelection.filter(id => id !== objectId)
+          selectObjects(newSelection)
+          console.log(`🎯 Removed from selection: ${objectId}`)
+        } else {
+          // Add to selection
+          const newSelection = [...currentSelection, objectId]
+          selectObjects(newSelection)
+          console.log(`🎯 Added to selection: ${objectId}`)
+        }
+      } else {
+        // Single select: replace selection
+        selectObjects([objectId])
+        console.log(`🎯 Single selected: ${objectId}`)
+      }
     }
-  }, [currentTool, selectObjects])
+  }, [currentTool, selectObjects, state.selectedObjects])
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when no input is focused
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Delete selected objects
+        if (state.selectedObjects.length > 0) {
+          e.preventDefault()
+          deleteObjects(state.selectedObjects)
+          console.log('⌫ Deleted selected objects')
+        }
+      } else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+        // Duplicate selected objects (Ctrl/Cmd + D)
+        if (state.selectedObjects.length > 0) {
+          e.preventDefault()
+          duplicateObjects(state.selectedObjects)
+          console.log('📋 Duplicated selected objects')
+        }
+      } else if (e.key === 'Escape') {
+        // Deselect all
+        selectObjects([])
+        console.log('🚫 Deselected all objects')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects])
 
   // Virtual canvas size (larger than viewport for infinite canvas feel)
   const virtualCanvasSize = {
@@ -171,15 +234,25 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         />
         
         {/* Render existing rectangles */}
-        {state.objects.map((object) => (
-          <Rectangle
-            key={object.id}
-            object={object}
-            isSelected={state.selectedObjects.includes(object.id)}
-            onSelect={handleObjectSelect}
-            onUpdate={updateObject}
-          />
-        ))}
+        {state.objects.map((object) => {
+          const isSelected = state.selectedObjects.includes(object.id)
+          
+          return (
+            <Rectangle
+              key={object.id}
+              object={object}
+              isSelected={isSelected}
+              onSelect={handleObjectSelect}
+              onUpdate={updateObject}
+            />
+          )
+        })}
+        
+        {/* Transformer for selected objects */}
+        <KonvaTransformer 
+          selectedIds={state.selectedObjects}
+          onUpdate={updateObject}
+        />
         
         {/* Preview rectangle during creation */}
         {previewRect && previewRect.width > 0 && previewRect.height > 0 && (
