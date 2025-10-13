@@ -144,16 +144,20 @@ collabcanvas/
 
 ---
 
-### **PR #5: Supabase Realtime Integration** 🔄
+### **PR #5: Supabase Realtime Integration** ✅
 
 **Goal:** Real-time sync across clients.
 
-* [ ] Create Realtime channel
-* [ ] Subscribe to object CRUD events
-* [ ] Broadcast changes
-* [ ] Handle incoming events
-* [ ] Set up presence channel
-* [ ] Test with 2+ browsers
+* [x] Create Realtime channel
+* [x] Subscribe to object CRUD events
+* [x] Broadcast changes
+* [x] Handle incoming events
+* [x] Set up presence channel
+* [x] Test with 2+ browsers
+* [x] Add real-time drag movement (50ms → 16ms throttling)
+* [x] Optimize performance (separate broadcast from database operations)
+* [x] Add connection status indicator
+* [x] Implement presence tracking with online user count
 
 ---
 
