@@ -67,8 +67,8 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-2xl font-bold !text-gray-900">Create Account</CardTitle>
+        <CardDescription className="!text-gray-600">
           Fill in the details below to create your account
         </CardDescription>
       </CardHeader>
@@ -82,7 +82,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="displayName">Display Name</Label>
+            <Label htmlFor="displayName" className="!text-gray-700 font-medium">Display Name</Label>
             <Input
               id="displayName"
               type="text"
@@ -91,11 +91,12 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               onChange={(e) => setDisplayName(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="!text-gray-700 font-medium">Email</Label>
             <Input
               id="email"
               type="email"
@@ -104,11 +105,12 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="!text-gray-700 font-medium">Password</Label>
             <Input
               id="password"
               type="password"
@@ -117,11 +119,12 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Label htmlFor="confirmPassword" className="!text-gray-700 font-medium">Confirm Password</Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -130,6 +133,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
         </CardContent>
@@ -137,19 +141,19 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             type="submit" 
-            className="w-full cursor-pointer"
+            className="w-full cursor-pointer !bg-blue-600 !text-white hover:!bg-blue-700"
             disabled={isLoading}
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
           </Button>
 
           {onToggleMode && (
-            <div className="text-center text-sm text-muted-foreground">
+            <div className="text-center text-sm !text-gray-600">
               Already have an account?{' '}
               <button
                 type="button"
                 onClick={onToggleMode}
-                className="text-primary hover:underline font-medium cursor-pointer"
+                className="text-blue-600 hover:underline font-medium cursor-pointer hover:text-blue-700"
                 disabled={isLoading}
               >
                 Sign in here

@@ -18,7 +18,7 @@ export default function Header({ userName, onSignOut }: HeaderProps) {
           
           <div className="flex items-center space-x-4">
             {userName && (
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-700">
                 Welcome, {userName}!
               </span>
             )}
@@ -27,7 +27,7 @@ export default function Header({ userName, onSignOut }: HeaderProps) {
                 variant="outline" 
                 onClick={onSignOut}
                 size="sm"
-                className="cursor-pointer"
+                className="cursor-pointer !text-gray-700 !bg-white !border-gray-300 hover:!bg-gray-50 hover:!text-gray-900"
               >
                 Sign Out
               </Button>
