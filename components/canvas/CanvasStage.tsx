@@ -10,9 +10,20 @@ interface CanvasStageProps {
   children?: React.ReactNode
   scale?: number
   onScaleChange?: (scale: number) => void
+  onStageClick?: (e: any) => void
+  onMouseMove?: (e: any) => void
+  onMouseUp?: (e: any) => void
 }
 
-export default function CanvasStage({ width, height, children, onScaleChange }: CanvasStageProps) {
+export default function CanvasStage({ 
+  width, 
+  height, 
+  children, 
+  onScaleChange, 
+  onStageClick,
+  onMouseMove,
+  onMouseUp 
+}: CanvasStageProps) {
   const stageRef = useRef<Konva.Stage>(null)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
   const [stageScale, setStageScale] = useState(1)
@@ -111,6 +122,10 @@ export default function CanvasStage({ width, height, children, onScaleChange }: 
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onClick={onStageClick}
+        onTap={onStageClick}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
         <Layer>

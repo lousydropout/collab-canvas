@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
 import Header from '@/components/layout/Header'
 import Toolbar from '@/components/layout/Toolbar'
+import { CanvasState } from '@/types/canvas'
 
 // Dynamically import Canvas with SSR disabled to prevent server-side rendering issues
 const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
@@ -20,6 +21,7 @@ const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
 export default function CanvasPage() {
   const { user, profile, loading, signOut } = useAuth()
   const router = useRouter()
+  const [currentTool, setCurrentTool] = useState<CanvasState['tool']>('select')
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -64,11 +66,18 @@ export default function CanvasPage() {
       {/* Main Canvas Area */}
       <div className="flex flex-1">
         {/* Toolbar */}
-        <Toolbar />
+        <Toolbar 
+          currentTool={currentTool}
+          onToolChange={setCurrentTool}
+        />
         
         {/* Canvas */}
         <main className="flex-1 bg-gray-50">
-          <Canvas className="h-screen" />
+          <Canvas 
+            className="h-screen" 
+            currentTool={currentTool}
+            onToolChange={setCurrentTool}
+          />
         </main>
       </div>
     </div>

@@ -50,8 +50,8 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-2xl font-bold !text-gray-900">Sign In</CardTitle>
+        <CardDescription className="!text-gray-600">
           Enter your email and password to access your account
         </CardDescription>
       </CardHeader>
@@ -65,7 +65,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="!text-gray-700 font-medium">Email</Label>
             <Input
               id="email"
               type="email"
@@ -74,11 +74,12 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="!text-gray-700 font-medium">Password</Label>
             <Input
               id="password"
               type="password"
@@ -87,6 +88,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
               required
+              className="!text-gray-900"
             />
           </div>
         </CardContent>
@@ -94,19 +96,19 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             type="submit" 
-            className="w-full cursor-pointer"
+            className="w-full cursor-pointer !bg-blue-600 !text-white hover:!bg-blue-700"
             disabled={isLoading}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
 
           {onToggleMode && (
-            <div className="text-center text-sm text-muted-foreground">
+            <div className="text-center text-sm !text-gray-600">
               Don't have an account?{' '}
               <button
                 type="button"
                 onClick={onToggleMode}
-                className="text-primary hover:underline font-medium cursor-pointer"
+                className="text-blue-600 hover:underline font-medium cursor-pointer hover:text-blue-700"
                 disabled={isLoading}
               >
                 Create one here
