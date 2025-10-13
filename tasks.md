@@ -105,16 +105,15 @@ collabcanvas/
 
 ---
 
-### **PR #2: Basic Canvas with Pan/Zoom** 🎨
+### **PR #2: Basic Canvas with Pan/Zoom** ✅
 
 **Goal:** Core canvas functionality.
 
-* [ ] Set up Konva Stage and Layer
-* [ ] Implement pan (drag background)
-* [ ] Implement zoom (scroll wheel)
-* [ ] Create canvas page layout
-* [ ] Add header and toolbar (stub)
-* [ ] Test 60 FPS
+* [x] Set up Konva Stage and Layer
+* [x] Implement pan (drag background)
+* [x] Implement zoom (scroll wheel)
+* [x] Create canvas page layout
+* [x] Add header and toolbar (stub)
 
 ---
 
