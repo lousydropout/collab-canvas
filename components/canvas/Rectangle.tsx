@@ -2,20 +2,25 @@
 
 import { Rect } from 'react-konva'
 import { CanvasObject } from '@/types/canvas'
+import { useRef, useCallback } from 'react'
 
 interface RectangleProps {
   object: CanvasObject
   isSelected?: boolean
   onSelect?: (id: string, event?: any) => void
   onUpdate?: (id: string, updates: Partial<CanvasObject>) => void
+  onRealtimeUpdate?: (id: string, updates: Partial<CanvasObject>) => void
 }
 
 export default function Rectangle({ 
   object, 
   isSelected = false, 
   onSelect, 
-  onUpdate 
+  onUpdate,
+  onRealtimeUpdate 
 }: RectangleProps) {
+  const lastUpdateRef = useRef<number>(0)
+  const THROTTLE_MS = 16 // Update every 16ms during drag (~60fps)
   const handleClick = (e: any) => {
     // Stop event from bubbling to canvas
     e.cancelBubble = true
@@ -23,6 +28,27 @@ export default function Rectangle({
     
     onSelect?.(object.id, e)
   }
+
+  const handleDragMove = useCallback((e: any) => {
+    // Stop event propagation
+    e.cancelBubble = true
+    if (e.stopPropagation) e.stopPropagation()
+    
+    // Throttle network updates to avoid overwhelming
+    const now = Date.now()
+    if (now - lastUpdateRef.current >= THROTTLE_MS) {
+      lastUpdateRef.current = now
+      
+      const node = e.target
+      const newPos = {
+        x: node.x(),
+        y: node.y(),
+      }
+      
+      // Send real-time position update (fast, broadcast-only)
+      onRealtimeUpdate?.(object.id, newPos)
+    }
+  }, [object.id, onRealtimeUpdate, THROTTLE_MS])
 
   const handleDragStart = (e: any) => {
     // Aggressively stop all event propagation
@@ -80,6 +106,7 @@ export default function Rectangle({
       onClick={handleClick}
       onTap={handleClick}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       shadowBlur={isSelected ? 10 : undefined}
       shadowColor={isSelected ? '#0066ff' : undefined}
