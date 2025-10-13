@@ -20,7 +20,9 @@ export default function KonvaTransformer({ selectedIds, onUpdate }: TransformerP
     const stage = transformer.getStage()
     if (!stage) return
 
-    const selectedNodes = selectedIds.map(id => stage.findOne(`#${id}`)).filter(Boolean)
+    const selectedNodes = selectedIds
+      .map(id => stage.findOne(`#${id}`))
+      .filter((node): node is Konva.Node => node !== null && node !== undefined)
     
     if (selectedNodes.length === 0) {
       transformer.nodes([])
