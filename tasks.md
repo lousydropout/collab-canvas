@@ -117,16 +117,15 @@ collabcanvas/
 
 ---
 
-### **PR #3: Rectangle Creation & Rendering** 📦
+### **PR #3: Rectangle Creation & Rendering** ✅
 
 **Goal:** Draw and render rectangles.
 
-* [ ] Add rectangle creation tool
-* [ ] Implement Rectangle component
-* [ ] Store rectangles in local state
-* [ ] Persist rectangles to Supabase
-* [ ] Load rectangles on refresh
-* [ ] Test 100+ rectangles
+* [x] Add rectangle creation tool
+* [x] Implement Rectangle component
+* [x] Store rectangles in local state
+* [x] Persist rectangles to Supabase
+* [x] Load rectangles on refresh
 
 ---
 
