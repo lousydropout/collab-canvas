@@ -334,13 +334,13 @@ Build a real-time collaborative canvas application where multiple users can crea
 
 #### Collections/Tables
 
-**users**
+**profiles**
 ```javascript
 {
-  id: string,
-  email: string,
+  id: string,              // UUID, references auth.users(id)
   displayName: string,
-  createdAt: timestamp
+  createdAt: timestamp,
+  updatedAt: timestamp
 }
 ```
 

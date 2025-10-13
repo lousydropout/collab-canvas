@@ -53,7 +53,7 @@ graph TB
         end
         
         subgraph "Supabase Database - PostgreSQL"
-            UsersTable[(users table)]
+            ProfilesTable[(profiles table)]
             CanvasObjectsTable[(canvas_objects table)]
             RLS[Row Level Security<br/>Policies]
         end
@@ -113,7 +113,7 @@ graph TB
     %% Lib to Supabase
     AuthLib --> Auth
     AuthLib --> Session
-    SupabaseClient --> UsersTable
+    SupabaseClient --> ProfilesTable
     SupabaseClient --> CanvasObjectsTable
     RealtimeLib --> ObjectsChannel
     RealtimeLib --> PresenceChannel
@@ -148,7 +148,7 @@ graph TB
     %% Auth Flow
     LoginForm -->|Login Request| Auth
     RegisterForm -->|Register Request| Auth
-    Auth -->|Create User| UsersTable
+    Auth -->|Create User| ProfilesTable
     Auth -->|Session Token| Session
     Session -->|Verify| RLS
     
@@ -181,7 +181,7 @@ graph TB
     
     class ClaimAPI,ReleaseAPI,SyncAPI apiClass
     
-    class Auth,Session,UsersTable,CanvasObjectsTable,RLS supabaseClass
+    class Auth,Session,ProfilesTable,CanvasObjectsTable,RLS supabaseClass
     class ObjectsChannel,PresenceChannel,OwnershipChannel supabaseClass
     
     class Vercel,Bun,TailwindCSS,ShadcnUI,Konva techClass

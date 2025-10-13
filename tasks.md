@@ -99,7 +99,7 @@ collabcanvas/
 * [x] Configure Supabase project and `.env`
 * [x] Set up Git repository
 * [x] Deploy to Vercel (initial deployment)
-* [ ] Create `users` schema
+* [x] Create `profiles` schema
 * [ ] Build auth UI (login/register)
 * [ ] Add protected routes
 
