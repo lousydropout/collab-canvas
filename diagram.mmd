@@ -1,0 +1,187 @@
+graph TB
+    subgraph "Client - Browser"
+        subgraph "Next.js App Router"
+            LoginPage[Login Page<br/>app/auth/login]
+            RegisterPage[Register Page<br/>app/auth/register]
+            CanvasPage[Canvas Page<br/>app/canvas]
+        end
+        
+        subgraph "UI Components"
+            Header[Header<br/>Logo, Logout, Users]
+            Toolbar[Toolbar<br/>Rectangle, Select, Delete]
+            UserList[User List<br/>Online Users]
+            LoginForm[Login Form]
+            RegisterForm[Register Form]
+        end
+        
+        subgraph "Canvas Components"
+            Canvas[Canvas Component<br/>Main Orchestrator]
+            CanvasStage[Canvas Stage<br/>Konva Stage/Layer]
+            Rectangle[Rectangle Component<br/>Konva.Rect]
+            Transformer[Transformer<br/>Konva.Transformer]
+            Cursor[Cursor Component<br/>Multiplayer Cursors]
+        end
+        
+        subgraph "Custom Hooks"
+            useAuth[useAuth<br/>Authentication State]
+            useCanvas[useCanvas<br/>Canvas State]
+            useRealtime[useRealtime<br/>Realtime Subscriptions]
+            usePresence[usePresence<br/>User Presence]
+            useOwnership[useOwnership<br/>Ownership Logic]
+        end
+        
+        subgraph "Lib/Utils"
+            SupabaseClient[Supabase Client<br/>lib/supabase/client]
+            AuthLib[Auth Lib<br/>lib/supabase/auth]
+            RealtimeLib[Realtime Lib<br/>lib/supabase/realtime]
+            KonvaManager[Konva Manager<br/>lib/canvas/konva-manager]
+            OwnershipLib[Ownership Lib<br/>lib/canvas/ownership]
+            SyncLib[Sync Lib<br/>lib/canvas/sync]
+        end
+    end
+    
+    subgraph "Next.js API Routes"
+        ClaimAPI[Claim API<br/>api/canvas/claim]
+        ReleaseAPI[Release API<br/>api/canvas/release]
+        SyncAPI[Sync API<br/>api/canvas/sync]
+    end
+    
+    subgraph "Supabase Backend"
+        subgraph "Supabase Auth"
+            Auth[Authentication Service]
+            Session[Session Management]
+        end
+        
+        subgraph "Supabase Database - PostgreSQL"
+            ProfilesTable[(profiles table)]
+            CanvasObjectsTable[(canvas_objects table)]
+            RLS[Row Level Security<br/>Policies]
+        end
+        
+        subgraph "Supabase Realtime"
+            ObjectsChannel[Objects Channel<br/>canvas:default:objects]
+            PresenceChannel[Presence Channel<br/>canvas:default:presence]
+            OwnershipChannel[Ownership Channel<br/>canvas:default:ownership]
+        end
+    end
+    
+    subgraph "External Services"
+        Vercel[Vercel<br/>Deployment & Hosting]
+    end
+    
+    subgraph "Technologies"
+        Bun[Bun Runtime]
+        TailwindCSS[TailwindCSS]
+        ShadcnUI[shadcn/ui]
+        Konva[Konva.js]
+    end
+    
+    %% Page Navigation
+    LoginPage --> LoginForm
+    RegisterPage --> RegisterForm
+    CanvasPage --> Header
+    CanvasPage --> Toolbar
+    CanvasPage --> Canvas
+    CanvasPage --> UserList
+    
+    %% Canvas Component Tree
+    Canvas --> CanvasStage
+    CanvasStage --> Rectangle
+    CanvasStage --> Cursor
+    Canvas --> Transformer
+    
+    %% Hook Usage
+    LoginForm --> useAuth
+    RegisterForm --> useAuth
+    Canvas --> useCanvas
+    Canvas --> useRealtime
+    Canvas --> usePresence
+    Canvas --> useOwnership
+    
+    %% Hooks to Lib
+    useAuth --> AuthLib
+    useAuth --> SupabaseClient
+    useCanvas --> KonvaManager
+    useCanvas --> SupabaseClient
+    useRealtime --> RealtimeLib
+    useRealtime --> SupabaseClient
+    usePresence --> RealtimeLib
+    useOwnership --> OwnershipLib
+    useOwnership --> ClaimAPI
+    useOwnership --> ReleaseAPI
+    
+    %% Lib to Supabase
+    AuthLib --> Auth
+    AuthLib --> Session
+    SupabaseClient --> ProfilesTable
+    SupabaseClient --> CanvasObjectsTable
+    RealtimeLib --> ObjectsChannel
+    RealtimeLib --> PresenceChannel
+    RealtimeLib --> OwnershipChannel
+    
+    %% API Routes to Supabase
+    ClaimAPI --> CanvasObjectsTable
+    ClaimAPI --> RLS
+    ReleaseAPI --> CanvasObjectsTable
+    ReleaseAPI --> RLS
+    SyncAPI --> CanvasObjectsTable
+    
+    %% Sync Flow
+    Canvas --> SyncLib
+    SyncLib --> SyncAPI
+    
+    %% Realtime Events
+    ObjectsChannel -->|CRUD Events| useRealtime
+    PresenceChannel -->|Cursor Events| usePresence
+    OwnershipChannel -->|Claim/Release| useOwnership
+    
+    %% Canvas to Realtime Broadcast
+    Rectangle -->|Position Updates| ObjectsChannel
+    Canvas -->|Create/Delete| ObjectsChannel
+    Canvas -->|Cursor Move| PresenceChannel
+    useOwnership -->|Claim/Release| OwnershipChannel
+    
+    %% Database Persistence
+    Rectangle -->|Save State| CanvasObjectsTable
+    Canvas -->|Load Objects| CanvasObjectsTable
+    
+    %% Auth Flow
+    LoginForm -->|Login Request| Auth
+    RegisterForm -->|Register Request| Auth
+    Auth -->|Create User| ProfilesTable
+    Auth -->|Session Token| Session
+    Session -->|Verify| RLS
+    
+    %% Deployment
+    CanvasPage -.->|Deployed on| Vercel
+    ClaimAPI -.->|Serverless| Vercel
+    ReleaseAPI -.->|Serverless| Vercel
+    SyncAPI -.->|Serverless| Vercel
+    
+    %% Technology Stack
+    Bun -.->|Runtime| CanvasPage
+    TailwindCSS -.->|Styling| Header
+    TailwindCSS -.->|Styling| Toolbar
+    ShadcnUI -.->|Components| LoginForm
+    ShadcnUI -.->|Components| UserList
+    Konva -.->|Canvas Library| CanvasStage
+    Konva -.->|Shapes| Rectangle
+    
+    %% Styling
+    classDef clientClass fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef serverClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef supabaseClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef apiClass fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef techClass fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    
+    class LoginPage,RegisterPage,CanvasPage,Header,Toolbar,UserList,LoginForm,RegisterForm clientClass
+    class Canvas,CanvasStage,Rectangle,Transformer,Cursor clientClass
+    class useAuth,useCanvas,useRealtime,usePresence,useOwnership clientClass
+    class SupabaseClient,AuthLib,RealtimeLib,KonvaManager,OwnershipLib,SyncLib clientClass
+    
+    class ClaimAPI,ReleaseAPI,SyncAPI apiClass
+    
+    class Auth,Session,ProfilesTable,CanvasObjectsTable,RLS supabaseClass
+    class ObjectsChannel,PresenceChannel,OwnershipChannel supabaseClass
+    
+    class Vercel,Bun,TailwindCSS,ShadcnUI,Konva techClass
