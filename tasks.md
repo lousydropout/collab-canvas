@@ -90,7 +90,7 @@ collabcanvas/
 
 ## 🧩 Pull Request Progress
 
-### **PR #1: Project Setup & Authentication** 🚧
+### **PR #1: Project Setup & Authentication** ✅
 
 **Goal:** Initialize project with authentication.
 
@@ -100,8 +100,8 @@ collabcanvas/
 * [x] Set up Git repository
 * [x] Deploy to Vercel (initial deployment)
 * [x] Create `profiles` schema
-* [ ] Build auth UI (login/register)
-* [ ] Add protected routes
+* [x] Build auth UI (login/register)
+* [x] Add protected routes
 
 ---
 
