@@ -67,20 +67,29 @@ export default function CanvasStage({
     setStagePos(newPos)
   }, [])
 
-  // Handle stage drag (pan)
-  const handleDragStart = useCallback(() => {
-    setIsDragging(true)
-    console.log('🖱️ Started panning')
+  // Handle stage drag (pan) - only when dragging the stage itself, not objects
+  const handleDragStart = useCallback((e: any) => {
+    // Only start panning if we're dragging the stage itself (not a child object)
+    if (e.target === e.target.getStage()) {
+      setIsDragging(true)
+      console.log('🖱️ Started panning')
+    } else {
+      // Cancel the stage drag if we're dragging a child object
+      e.target.getStage().stopDrag()
+    }
   }, [])
 
   const handleDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
-    setIsDragging(false)
-    const newPos = {
-      x: e.target.x(),
-      y: e.target.y(),
+    // Only handle pan end if we were actually panning the stage
+    if (e.target === e.target.getStage()) {
+      setIsDragging(false)
+      const newPos = {
+        x: e.target.x(),
+        y: e.target.y(),
+      }
+      setStagePos(newPos)
+      console.log(`📍 Pan position: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`)
     }
-    setStagePos(newPos)
-    console.log(`📍 Pan position: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`)
   }, [])
 
   // Prevent context menu on right click
