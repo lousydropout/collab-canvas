@@ -94,7 +94,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             type="submit" 
-            className="w-full"
+            className="w-full cursor-pointer"
             disabled={isLoading}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
@@ -106,7 +106,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
               <button
                 type="button"
                 onClick={onToggleMode}
-                className="text-primary hover:underline font-medium"
+                className="text-primary hover:underline font-medium cursor-pointer"
                 disabled={isLoading}
               >
                 Create one here

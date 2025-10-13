@@ -27,6 +27,7 @@ export default function Header({ userName, onSignOut }: HeaderProps) {
                 variant="outline" 
                 onClick={onSignOut}
                 size="sm"
+                className="cursor-pointer"
               >
                 Sign Out
               </Button>

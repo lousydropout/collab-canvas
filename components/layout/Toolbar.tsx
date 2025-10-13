@@ -9,7 +9,7 @@ export default function Toolbar() {
       <Button
         variant="ghost"
         size="sm"
-        className="w-10 h-10 p-0"
+        className="w-10 h-10 p-0 cursor-pointer"
         title="Select Tool"
       >
         <MousePointer2 className="h-4 w-4" />

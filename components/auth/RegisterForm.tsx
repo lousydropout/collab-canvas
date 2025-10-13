@@ -137,7 +137,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             type="submit" 
-            className="w-full"
+            className="w-full cursor-pointer"
             disabled={isLoading}
           >
             {isLoading ? 'Creating Account...' : 'Create Account'}
@@ -149,7 +149,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               <button
                 type="button"
                 onClick={onToggleMode}
-                className="text-primary hover:underline font-medium"
+                className="text-primary hover:underline font-medium cursor-pointer"
                 disabled={isLoading}
               >
                 Sign in here
