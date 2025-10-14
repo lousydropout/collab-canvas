@@ -7,6 +7,7 @@ export interface RealtimeEvents {
   object_updated: {
     object: CanvasObject
     user_id: string
+    ownerDisplayName?: string | null
   }
   object_deleted: {
     object_id: string

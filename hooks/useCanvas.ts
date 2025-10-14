@@ -51,8 +51,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     })
   }, [user])
 
-  const handleRealtimeObjectUpdated = useCallback((event: { object: CanvasObject; user_id: string }) => {
-    const { object, user_id } = event
+  const handleRealtimeObjectUpdated = useCallback((event: { object: CanvasObject; user_id: string; ownerDisplayName?: string | null }) => {
+    const { object, user_id, ownerDisplayName } = event
     
     // Skip if this was our own operation
     if (user && user_id === user.id) {
@@ -67,7 +67,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received object updated:', object.id, 'by user:', user_id)
+    console.log('📥 Received object updated:', object.id, 'by user:', user_id, ownerDisplayName ? `(owner: ${ownerDisplayName})` : '')
     setState(prev => ({
       ...prev,
       objects: prev.objects.map(obj => obj.id === object.id ? object : obj),

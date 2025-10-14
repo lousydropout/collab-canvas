@@ -1,6 +1,6 @@
 'use client'
 
-import { Rect } from 'react-konva'
+import { Rect, Text, Group } from 'react-konva'
 import { CanvasObject } from '@/types/canvas'
 
 interface RectangleProps {
@@ -166,32 +166,63 @@ export default function Rectangle({
 
   const ownershipStyling = getOwnershipStyling()
 
+  // Show owner label for objects owned by others
+  const showOwnerLabel = ownershipStatus === 'claimed' && ownerInfo?.owner_name
+
   return (
-    <Rect
-      id={object.id}
-      x={object.x}
-      y={object.y}
-      width={object.width}
-      height={object.height}
-      fill={object.color}
-      rotation={object.rotation}
-      draggable={canInteract && !isPendingClaim}
-      onClick={handleClick}
-      onTap={handleClick}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      // Apply ownership-based styling
-      stroke={ownershipStyling.stroke}
-      strokeWidth={ownershipStyling.strokeWidth}
-      dash={ownershipStyling.dash}
-      shadowBlur={ownershipStyling.shadowBlur}
-      shadowColor={ownershipStyling.shadowColor}
-      shadowOpacity={ownershipStyling.shadowOpacity}
-      // Visual feedback for interaction state
-      opacity={canInteract ? 1 : 0.7}
-      // Show not-allowed cursor for objects owned by others
-      listening={canInteract}
-      cursor={canInteract ? 'pointer' : 'not-allowed'}
-    />
+    <Group>
+      <Rect
+        id={object.id}
+        x={object.x}
+        y={object.y}
+        width={object.width}
+        height={object.height}
+        fill={object.color}
+        rotation={object.rotation}
+        draggable={canInteract && !isPendingClaim}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        // Apply ownership-based styling
+        stroke={ownershipStyling.stroke}
+        strokeWidth={ownershipStyling.strokeWidth}
+        dash={ownershipStyling.dash}
+        shadowBlur={ownershipStyling.shadowBlur}
+        shadowColor={ownershipStyling.shadowColor}
+        shadowOpacity={ownershipStyling.shadowOpacity}
+        // Visual feedback for interaction state
+        opacity={canInteract ? 1 : 0.7}
+        // Show not-allowed cursor for objects owned by others
+        listening={canInteract}
+        cursor={canInteract ? 'pointer' : 'not-allowed'}
+      />
+      
+      {/* Owner label for objects owned by others */}
+      {showOwnerLabel && ownerInfo?.owner_name && (
+        <>
+          {/* Background for text */}
+          <Rect
+            x={object.x}
+            y={object.y - 25}
+            width={Math.max(80, ownerInfo.owner_name.length * 7 + 16)}
+            height={20}
+            fill="rgba(239, 68, 68, 0.9)"
+            cornerRadius={4}
+            listening={false}
+          />
+          {/* Owner name text */}
+          <Text
+            x={object.x + 8}
+            y={object.y - 20}
+            text={ownerInfo.owner_name}
+            fontSize={12}
+            fontFamily="Arial, sans-serif"
+            fill="white"
+            listening={false}
+          />
+        </>
+      )}
+    </Group>
   )
 }

@@ -215,18 +215,40 @@ export function useRealtime({
           table: 'canvas_objects',
           filter: `canvas_id=eq.${canvasId}`,
         },
-        (payload) => {
+        async (payload) => {
           console.log('📥 Database UPDATE received:', payload)
-          if (onObjectUpdated && payload.new) {
-            onObjectUpdated({
-              object: payload.new as CanvasObject,
-              user_id: payload.new.created_by || 'unknown',
-            })
-          }
           
-          // Also handle ownership changes
+          // Handle ownership changes first
           if (onOwnershipChanged) {
             onOwnershipChanged(payload)
+          }
+          
+          if (onObjectUpdated && payload.new) {
+            const newObject = payload.new as CanvasObject
+            let ownerDisplayName = null
+            
+            // If owner changed and is not 'all', fetch the owner's display name
+            if (payload.old && newObject.owner !== payload.old.owner && newObject.owner !== 'all') {
+              try {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('display_name')
+                  .eq('id', newObject.owner)
+                  .single()
+                
+                ownerDisplayName = profile?.display_name || 'Unknown User'
+                console.log(`📋 Fetched owner display name: ${ownerDisplayName} for object ${newObject.id}`)
+              } catch (error) {
+                console.warn('Failed to fetch owner display name:', error)
+                ownerDisplayName = 'Unknown User'
+              }
+            }
+            
+            onObjectUpdated({
+              object: newObject,
+              user_id: payload.new.created_by || 'unknown',
+              ownerDisplayName,
+            })
           }
         }
       )
