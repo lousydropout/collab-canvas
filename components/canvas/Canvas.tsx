@@ -6,6 +6,7 @@ import Grid from './Grid'
 import Rectangle from './Rectangle'
 import KonvaTransformer from './Transformer'
 import Cursor from './Cursor'
+import { UserListModal } from './UserListModal'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useOwnership } from '@/hooks/useOwnership'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,6 +27,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const [isHoveringObject, setIsHoveringObject] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isUserListModalOpen, setIsUserListModalOpen] = useState(false)
 
   // Cursor position tracking refs
   const cursorThrottleRef = useRef<NodeJS.Timeout | null>(null)
@@ -473,9 +475,12 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           {realtime.onlineUsers.length > 0 && (
             <>
               <span className="text-gray-300">•</span>
-              <span className="text-gray-600">
+              <button
+                onClick={() => setIsUserListModalOpen(true)}
+                className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors cursor-pointer"
+              >
                 {realtime.onlineUsers.length} online
-              </span>
+              </button>
             </>
           )}
           {ownership.pendingClaims.size > 0 && (
@@ -579,6 +584,13 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           />
         )}
       </CanvasStage>
+      
+      {/* User List Modal */}
+      <UserListModal
+        isOpen={isUserListModalOpen}
+        onClose={() => setIsUserListModalOpen(false)}
+        onlineUsers={realtime.onlineUsers}
+      />
     </div>
   )
 }
