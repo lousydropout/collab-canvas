@@ -2,14 +2,17 @@
 
 import { Rect } from 'react-konva'
 import { CanvasObject } from '@/types/canvas'
-import { useRef, useCallback } from 'react'
 
 interface RectangleProps {
   object: CanvasObject
   isSelected?: boolean
   onSelect?: (id: string, event?: any) => void
   onUpdate?: (id: string, updates: Partial<CanvasObject>) => void
-  onRealtimeUpdate?: (id: string, updates: Partial<CanvasObject>) => void
+  // Ownership props
+  ownershipStatus?: 'available' | 'claimed' | 'claimed_by_me' | 'expired'
+  ownerInfo?: { owner_name: string | null; expires_at: string | null } | null
+  isPendingClaim?: boolean
+  onClaimAttempt?: (objectId: string) => Promise<boolean>
 }
 
 export default function Rectangle({ 
@@ -17,40 +20,91 @@ export default function Rectangle({
   isSelected = false, 
   onSelect, 
   onUpdate,
-  onRealtimeUpdate 
+  ownershipStatus = 'available',
+  ownerInfo,
+  isPendingClaim = false,
+  onClaimAttempt
 }: RectangleProps) {
-  const lastUpdateRef = useRef<number>(0)
-  const THROTTLE_MS = 16 // Update every 16ms during drag (~60fps)
-  const handleClick = (e: any) => {
+  // Removed real-time drag throttling since we only update on drag end
+  
+  // Calculate ownership-based styling
+  const getOwnershipStyling = () => {
+    if (isPendingClaim) {
+      return {
+        stroke: '#fbbf24', // yellow for pending
+        strokeWidth: 3,
+        dash: [5, 5], // dashed border for pending
+        shadowColor: '#fbbf24',
+        shadowBlur: 8,
+        shadowOpacity: 0.5,
+      }
+    }
+
+    switch (ownershipStatus) {
+      case 'claimed_by_me':
+        return {
+          stroke: '#10b981', // green for my claim
+          strokeWidth: 2,
+          shadowColor: '#10b981',
+          shadowBlur: 6,
+          shadowOpacity: 0.3,
+        }
+      case 'claimed':
+        return {
+          stroke: '#ef4444', // red for claimed by others
+          strokeWidth: 2,
+          shadowColor: '#ef4444',
+          shadowBlur: 6,
+          shadowOpacity: 0.3,
+        }
+      case 'expired':
+        return {
+          stroke: '#6b7280', // gray for expired
+          strokeWidth: 1,
+          dash: [3, 3],
+          shadowOpacity: 0.1,
+        }
+      case 'available':
+      default:
+        return {
+          stroke: isSelected ? '#0066ff' : undefined,
+          strokeWidth: isSelected ? 2 : undefined,
+          shadowColor: isSelected ? '#0066ff' : undefined,
+          shadowBlur: isSelected ? 10 : undefined,
+          shadowOpacity: isSelected ? 0.3 : undefined,
+        }
+    }
+  }
+
+  // Check if interaction is allowed
+  const canInteract = ownershipStatus === 'available' || ownershipStatus === 'claimed_by_me' || ownershipStatus === 'expired'
+
+  const handleClick = async (e: any) => {
     // Stop event from bubbling to canvas
     e.cancelBubble = true
     if (e.stopPropagation) e.stopPropagation()
     
+    // Don't allow selection if object is owned by someone else
+    if (!canInteract) {
+      console.log(`🚫 Cannot select object ${object.id}: owned by ${ownerInfo?.owner_name}`)
+      return
+    }
+    
+    // Attempt to claim object on selection if not already claimed by me
+    if (ownershipStatus !== 'claimed_by_me' && canInteract && onClaimAttempt) {
+      console.log(`🏷️ Attempting to claim object ${object.id} on selection`)
+      await onClaimAttempt(object.id)
+    }
+    
     onSelect?.(object.id, e)
   }
 
-  const handleDragMove = useCallback((e: any) => {
-    // Stop event propagation
-    e.cancelBubble = true
-    if (e.stopPropagation) e.stopPropagation()
-    
-    // Throttle network updates to avoid overwhelming
-    const now = Date.now()
-    if (now - lastUpdateRef.current >= THROTTLE_MS) {
-      lastUpdateRef.current = now
-      
-      const node = e.target
-      const newPos = {
-        x: node.x(),
-        y: node.y(),
-      }
-      
-      // Send real-time position update (fast, broadcast-only)
-      onRealtimeUpdate?.(object.id, newPos)
-    }
-  }, [object.id, onRealtimeUpdate, THROTTLE_MS])
+  // Remove real-time drag updates - we'll only update on drag end
+  // const handleDragMove = useCallback((e: any) => {
+  //   // Real-time updates removed for simplicity
+  // }, [])
 
-  const handleDragStart = (e: any) => {
+  const handleDragStart = async (e: any) => {
     // Aggressively stop all event propagation
     e.cancelBubble = true
     if (e.stopPropagation) e.stopPropagation()
@@ -61,6 +115,25 @@ export default function Rectangle({
       e.evt.stopPropagation()
       e.evt.preventDefault()
       e.evt.cancelBubble = true
+    }
+    
+    // Check ownership before allowing drag
+    if (!canInteract) {
+      console.log(`🚫 Cannot drag object ${object.id}: owned by ${ownerInfo?.owner_name}`)
+      e.target.stopDrag()
+      return
+    }
+
+    // Attempt to claim object if not already claimed by me
+    if (ownershipStatus !== 'claimed_by_me' && onClaimAttempt) {
+      console.log(`🏷️ Attempting to claim object ${object.id} before dragging`)
+      const claimSuccess = await onClaimAttempt(object.id)
+      
+      if (!claimSuccess) {
+        console.log(`🚫 Failed to claim object ${object.id}, preventing drag`)
+        e.target.stopDrag()
+        return
+      }
     }
     
     // Ensure rectangle is selected when starting to drag
@@ -91,6 +164,8 @@ export default function Rectangle({
     onUpdate?.(object.id, newPos)
   }
 
+  const ownershipStyling = getOwnershipStyling()
+
   return (
     <Rect
       id={object.id}
@@ -100,17 +175,23 @@ export default function Rectangle({
       height={object.height}
       fill={object.color}
       rotation={object.rotation}
-      stroke={isSelected ? '#0066ff' : undefined}
-      strokeWidth={isSelected ? 2 : undefined}
-      draggable
+      draggable={canInteract && !isPendingClaim}
       onClick={handleClick}
       onTap={handleClick}
       onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
-      shadowBlur={isSelected ? 10 : undefined}
-      shadowColor={isSelected ? '#0066ff' : undefined}
-      shadowOpacity={isSelected ? 0.3 : undefined}
+      // Apply ownership-based styling
+      stroke={ownershipStyling.stroke}
+      strokeWidth={ownershipStyling.strokeWidth}
+      dash={ownershipStyling.dash}
+      shadowBlur={ownershipStyling.shadowBlur}
+      shadowColor={ownershipStyling.shadowColor}
+      shadowOpacity={ownershipStyling.shadowOpacity}
+      // Visual feedback for interaction state
+      opacity={canInteract ? 1 : 0.7}
+      // Show not-allowed cursor for objects owned by others
+      listening={canInteract}
+      cursor={canInteract ? 'pointer' : 'not-allowed'}
     />
   )
 }

@@ -161,16 +161,22 @@ collabcanvas/
 
 ---
 
-### **PR #6: Ownership System with Claim-Confirm** 🔒
+### **PR #6: Ownership System with Claim-Confirm** ✅
 
 **Goal:** Prevent editing conflicts.
 
-* [ ] Implement claim/release APIs
-* [ ] Add ownership claim logic
-* [ ] Add ownership visuals (borders)
-* [ ] Server-validate ownership
-* [ ] Broadcast ownership updates
-* [ ] Handle rejections gracefully
+* [x] Implement claim/release APIs
+* [x] Add ownership claim logic  
+* [x] Add ownership visuals (borders)
+* [x] Server-validate ownership
+* [x] Broadcast ownership updates
+* [x] Handle rejections gracefully
+* [x] Simplify to use canvas_objects.owner field instead of separate table
+* [x] Fix real-time synchronization of ownership changes
+* [x] Add automatic ownership release on window blur/close
+* [x] Update object creation to automatically assign creator as owner
+* [x] Confirmed: No need for separate object_ownership table (owner field is sufficient)
+* [x] Applied cleanup migration to ensure no object_ownership table exists
 
 ---
 

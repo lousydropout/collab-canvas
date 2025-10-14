@@ -13,6 +13,8 @@ interface CanvasStageProps {
   onStageClick?: (e: any) => void
   onMouseMove?: (e: any) => void
   onMouseUp?: (e: any) => void
+  onMouseLeave?: (e: any) => void
+  cursor?: string
 }
 
 export default function CanvasStage({ 
@@ -22,7 +24,9 @@ export default function CanvasStage({
   onScaleChange, 
   onStageClick,
   onMouseMove,
-  onMouseUp 
+  onMouseUp,
+  onMouseLeave,
+  cursor = 'grab'
 }: CanvasStageProps) {
   const stageRef = useRef<Konva.Stage>(null)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
@@ -135,8 +139,9 @@ export default function CanvasStage({
         onTap={onStageClick}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
+        onMouseLeave={onMouseLeave}
         style={{ 
-          cursor: isDragging ? 'grabbing' : 'grab',
+          cursor: isDragging ? 'grabbing' : cursor,
           display: 'block',
           maxWidth: '100%',
           maxHeight: '100%'

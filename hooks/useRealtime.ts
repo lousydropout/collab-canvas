@@ -13,6 +13,7 @@ interface UseRealtimeProps {
   onObjectDeleted?: (event: RealtimeEvents['object_deleted']) => void
   onObjectsDeleted?: (event: RealtimeEvents['objects_deleted']) => void
   onObjectsDuplicated?: (event: RealtimeEvents['objects_duplicated']) => void
+  onOwnershipChanged?: (payload: any) => void
 }
 
 export function useRealtime({
@@ -22,6 +23,7 @@ export function useRealtime({
   onObjectDeleted,
   onObjectsDeleted,
   onObjectsDuplicated,
+  onOwnershipChanged,
 }: UseRealtimeProps) {
   const { user, profile } = useAuth()
   const [state, setState] = useState<RealtimeState>({
@@ -109,6 +111,42 @@ export function useRealtime({
     })
   }, [user])
 
+  // Broadcast ownership claimed
+  const broadcastOwnershipClaimed = useCallback(async (event: { object_id: string; owner_id: string; owner_name: string; claimed_at: string; expires_at: string }) => {
+    if (!channelRef.current || !user) return
+
+    console.log('📡 Broadcasting ownership claimed:', event.object_id)
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'ownership_claimed',
+      payload: event,
+    })
+  }, [user])
+
+  // Broadcast ownership released
+  const broadcastOwnershipReleased = useCallback(async (event: { object_id: string; former_owner_id: string; released_at: string }) => {
+    if (!channelRef.current || !user) return
+
+    console.log('📡 Broadcasting ownership released:', event.object_id)
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'ownership_released',
+      payload: event,
+    })
+  }, [user])
+
+  // Broadcast ownership rejected
+  const broadcastOwnershipRejected = useCallback(async (event: { object_id: string; requesting_user_id: string; current_owner_id: string; current_owner_name: string }) => {
+    if (!channelRef.current || !user) return
+
+    console.log('📡 Broadcasting ownership rejected:', event.object_id)
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'ownership_rejected',
+      payload: event,
+    })
+  }, [user])
+
   // Update cursor position in presence
   const updateCursorPosition = useCallback(async (position: { x: number; y: number }) => {
     if (!presenceChannelRef.current || !user || !profile?.display_name) return
@@ -184,6 +222,11 @@ export function useRealtime({
               object: payload.new as CanvasObject,
               user_id: payload.new.created_by || 'unknown',
             })
+          }
+          
+          // Also handle ownership changes
+          if (onOwnershipChanged) {
+            onOwnershipChanged(payload)
           }
         }
       )
@@ -351,6 +394,9 @@ export function useRealtime({
     broadcastObjectDeleted,
     broadcastObjectsDeleted,
     broadcastObjectsDuplicated,
+    broadcastOwnershipClaimed,
+    broadcastOwnershipReleased,
+    broadcastOwnershipRejected,
     updateCursorPosition,
     updateSelectedObjects,
   }

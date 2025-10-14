@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 
-export function useCanvas(canvasId: string = 'default') {
+export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void) {
   const { user } = useAuth()
   const [state, setState] = useState<CanvasState>({
     objects: [],
@@ -139,6 +139,7 @@ export function useCanvas(canvasId: string = 'default') {
     onObjectDeleted: handleRealtimeObjectDeleted,
     onObjectsDeleted: handleRealtimeObjectsDeleted,
     onObjectsDuplicated: handleRealtimeObjectsDuplicated,
+    onOwnershipChanged: ownershipHandler,
   })
 
   // Load objects from Supabase
@@ -186,7 +187,7 @@ export function useCanvas(canvasId: string = 'default') {
         height: payload.height,
         color: payload.color || '#3b82f6',
         rotation: payload.rotation || 0,
-        owner: 'all',
+        owner: user.id, // Creator automatically owns the object
         created_by: user.id,
       }
 
@@ -223,23 +224,7 @@ export function useCanvas(canvasId: string = 'default') {
     }
   }, [user, canvasId, realtime])
 
-  // Broadcast-only update for real-time drag (no database)
-  const broadcastObjectUpdate = useCallback(async (id: string, updates: Partial<CanvasObject>) => {
-    // Find the object and apply updates
-    const currentObject = state.objects.find(obj => obj.id === id)
-    if (!currentObject) return
-
-    const updatedObject = { ...currentObject, ...updates, updated_at: new Date().toISOString() }
-    
-    // Update local state immediately (optimistic)
-    setState(prev => ({
-      ...prev,
-      objects: prev.objects.map(obj => obj.id === id ? updatedObject : obj),
-    }))
-    
-    // Broadcast to other clients (no database update)
-    await realtime.broadcastObjectUpdated(updatedObject)
-  }, [state.objects, realtime])
+  // Removed broadcastObjectUpdate - we only update on drag end now
 
   // Full update with database persistence (for final updates)
   const updateObject = useCallback(async (id: string, updates: Partial<CanvasObject>) => {
@@ -336,7 +321,7 @@ export function useCanvas(canvasId: string = 'default') {
         height: obj.height,
         color: obj.color,
         rotation: obj.rotation,
-        owner: 'all',
+        owner: user.id, // Duplicator automatically owns the new objects
         created_by: user.id,
       }))
 
@@ -385,7 +370,6 @@ export function useCanvas(canvasId: string = 'default') {
     state,
     createRectangle,
     updateObject,
-    broadcastObjectUpdate,
     deleteObjects,
     duplicateObjects,
     selectObjects,

@@ -6,6 +6,8 @@ import Grid from './Grid'
 import Rectangle from './Rectangle'
 import KonvaTransformer from './Transformer'
 import { useCanvas } from '@/hooks/useCanvas'
+import { useOwnership } from '@/hooks/useOwnership'
+import { useAuth } from '@/hooks/useAuth'
 import { CanvasState } from '@/types/canvas'
 
 interface CanvasProps {
@@ -15,13 +17,45 @@ interface CanvasProps {
 }
 
 export default function Canvas({ className = '', currentTool, onToolChange }: CanvasProps) {
+  const { user } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [currentScale, setCurrentScale] = useState(1)
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
+  const [isHoveringObject, setIsHoveringObject] = useState(false)
 
-  const { state, createRectangle, updateObject, broadcastObjectUpdate, deleteObjects, duplicateObjects, selectObjects, setTool, realtime } = useCanvas()
+  // Initialize ownership system first
+  const ownership = useOwnership({
+    canvasId: 'default',
+    onOwnershipClaimed: (event) => {
+      console.log(`🏷️ Ownership claimed: ${event.object_id} by ${event.owner_name}`)
+    },
+    onOwnershipReleased: (event) => {
+      console.log(`🏷️ Ownership released: ${event.object_id}`)
+    },
+    onOwnershipRejected: (event) => {
+      console.log(`🏷️ Ownership rejected: ${event.object_id} (claimed by ${event.current_owner_name})`)
+    },
+  })
+
+  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, realtime } = useCanvas('default', (payload) => {
+    // Handle ownership updates
+    ownership.handleCanvasObjectUpdate(payload)
+    
+    // Auto-deselect objects that become owned by someone else
+    const { new: newRecord, old: oldRecord } = payload
+    if (newRecord?.id && newRecord.owner !== oldRecord?.owner) {
+      const objectId = newRecord.id
+      const newOwner = newRecord.owner
+      
+      // If object is now owned by someone else (not 'all' and not current user)
+      if (newOwner !== 'all' && newOwner !== user?.id && state.selectedObjects.includes(objectId)) {
+        console.log(`🚫 Auto-deselecting object ${objectId} - now owned by someone else`)
+        selectObjects(state.selectedObjects.filter(id => id !== objectId))
+      }
+    }
+  })
 
   // Sync tool state
   useEffect(() => {
@@ -75,35 +109,65 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     }
     
     const stage = e.target.getStage()
-    const pos = stage.getPointerPosition()
+    const pointerPos = stage.getPointerPosition()
+    const isShiftClick = e.evt?.shiftKey || false
     
-    if (currentTool === 'rectangle' && !isCreatingRect) {
-      console.log('🚀 Starting rectangle creation at:', pos)
+    if (currentTool === 'rectangle' && !isCreatingRect && pointerPos) {
+      // Convert screen coordinates to stage coordinates
+      const stagePos = {
+        x: (pointerPos.x - stage.x()) / stage.scaleX(),
+        y: (pointerPos.y - stage.y()) / stage.scaleY()
+      }
+      
+      console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
       setIsCreatingRect(true)
       setCreatingRect({
-        startX: pos.x,
-        startY: pos.y,
-        endX: pos.x,
-        endY: pos.y,
+        startX: stagePos.x,
+        startY: stagePos.y,
+        endX: stagePos.x,
+        endY: stagePos.y,
       })
     } else if (currentTool === 'select') {
       // Deselect all when clicking empty space
       selectObjects([])
+      
+      // Release ownership of all objects when clicking empty space (unless shift is held)
+      if (!isShiftClick) {
+        console.log('🏷️ Releasing all ownership due to empty space click')
+        ownership.releaseAllObjects()
+      }
     }
-  }, [currentTool, isCreatingRect, selectObjects])
+  }, [currentTool, isCreatingRect, selectObjects, ownership])
 
-  // Handle mouse move during rectangle creation
+  // Handle mouse move during rectangle creation and cursor updates
   const handleMouseMove = useCallback((e: any) => {
+    // Handle rectangle creation
     if (isCreatingRect && creatingRect) {
       const stage = e.target.getStage()
-      const pos = stage.getPointerPosition()
-      setCreatingRect(prev => prev ? {
-        ...prev,
-        endX: pos.x,
-        endY: pos.y,
-      } : null)
+      const pointerPos = stage.getPointerPosition()
+      
+      if (pointerPos) {
+        // Convert screen coordinates to stage coordinates
+        const stagePos = {
+          x: (pointerPos.x - stage.x()) / stage.scaleX(),
+          y: (pointerPos.y - stage.y()) / stage.scaleY()
+        }
+        
+        setCreatingRect(prev => prev ? {
+          ...prev,
+          endX: stagePos.x,
+          endY: stagePos.y,
+        } : null)
+      }
     }
-  }, [isCreatingRect, creatingRect])
+    
+    // Update cursor state for select tool
+    if (currentTool === 'select') {
+      const target = e.target
+      const isOverObject = target !== target.getStage()
+      setIsHoveringObject(isOverObject)
+    }
+  }, [isCreatingRect, creatingRect, currentTool])
 
   // Handle mouse up to finish rectangle creation
   const handleMouseUp = useCallback(async () => {
@@ -137,7 +201,21 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   // Handle object selection (with multi-select support)
   const handleObjectSelect = useCallback((objectId: string, event?: any) => {
     if (currentTool === 'select') {
+      // Check if we can edit/select this object
+      const canSelectObject = ownership.canEdit(objectId)
+      
+      if (!canSelectObject) {
+        console.log(`🚫 Cannot select object ${objectId}: owned by someone else`)
+        return
+      }
+      
       const isShiftClick = event?.evt?.shiftKey || false
+      
+      // Release ownership of all other objects unless shift is held
+      if (!isShiftClick) {
+        console.log(`🏷️ Releasing ownership of all objects except: ${objectId}`)
+        ownership.releaseAllExcept(objectId)
+      }
       
       if (isShiftClick) {
         // Multi-select: add/remove from selection
@@ -159,7 +237,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         console.log(`🎯 Single selected: ${objectId}`)
       }
     }
-  }, [currentTool, selectObjects, state.selectedObjects])
+  }, [currentTool, selectObjects, state.selectedObjects, ownership])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -184,9 +262,10 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           console.log('📋 Duplicated selected objects')
         }
       } else if (e.key === 'Escape') {
-        // Deselect all
+        // Deselect all and release ownership
         selectObjects([])
-        console.log('🚫 Deselected all objects')
+        ownership.releaseAllObjects()
+        console.log('🚫 Deselected all objects and released ownership')
       }
     }
 
@@ -194,7 +273,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects])
+  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership])
 
   // Virtual canvas size (larger than viewport for infinite canvas feel)
   const virtualCanvasSize = {
@@ -220,10 +299,10 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
       <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg px-3 py-2 text-sm shadow-lg">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${
-            realtime.isConnected ? 'bg-green-500' : 'bg-red-500'
+            realtime.isConnected && ownership.isConnected ? 'bg-green-500' : 'bg-red-500'
           }`} />
-          <span className={realtime.isConnected ? 'text-green-700' : 'text-red-700'}>
-            {realtime.isConnected ? 'Connected' : 'Disconnected'}
+          <span className={realtime.isConnected && ownership.isConnected ? 'text-green-700' : 'text-red-700'}>
+            {realtime.isConnected && ownership.isConnected ? 'Connected' : 'Disconnected'}
           </span>
           {realtime.onlineUsers.length > 0 && (
             <>
@@ -233,10 +312,18 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
               </span>
             </>
           )}
+          {ownership.pendingClaims.size > 0 && (
+            <>
+              <span className="text-gray-300">•</span>
+              <span className="text-yellow-600">
+                {ownership.pendingClaims.size} claiming
+              </span>
+            </>
+          )}
         </div>
-        {realtime.error && (
+        {(realtime.error || !ownership.isConnected) && (
           <div className="text-xs text-red-600 mt-1">
-            {realtime.error}
+            {realtime.error || 'Ownership system disconnected'}
           </div>
         )}
       </div>
@@ -247,6 +334,14 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         onStageClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onMouseLeave={() => setIsHoveringObject(false)}
+        cursor={
+          currentTool === 'rectangle' 
+            ? 'crosshair' 
+            : currentTool === 'select' && isHoveringObject 
+              ? 'pointer' 
+              : 'default'
+        }
       >
         <Grid 
           width={virtualCanvasSize.width} 
@@ -260,6 +355,9 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         {/* Render existing rectangles */}
         {state.objects.map((object) => {
           const isSelected = state.selectedObjects.includes(object.id)
+          const ownershipStatus = ownership.getOwnershipStatus(object.id)
+          const ownerInfo = ownership.getOwnerInfo(object.id)
+          const isPendingClaim = ownership.pendingClaims.has(object.id)
           
           return (
             <Rectangle
@@ -268,7 +366,10 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
               isSelected={isSelected}
               onSelect={handleObjectSelect}
               onUpdate={updateObject}
-              onRealtimeUpdate={broadcastObjectUpdate}
+              ownershipStatus={ownershipStatus}
+              ownerInfo={ownerInfo}
+              isPendingClaim={isPendingClaim}
+              onClaimAttempt={ownership.claimObject}
             />
           )
         })}

@@ -24,6 +24,28 @@ export interface RealtimeEvents {
     new_objects: CanvasObject[]
     user_id: string
   }
+
+  // Ownership events
+  ownership_claimed: {
+    object_id: string
+    owner_id: string
+    owner_name: string
+    claimed_at: string
+    expires_at: string
+  }
+  
+  ownership_released: {
+    object_id: string
+    former_owner_id: string
+    released_at: string
+  }
+  
+  ownership_rejected: {
+    object_id: string
+    requesting_user_id: string
+    current_owner_id: string
+    current_owner_name: string
+  }
 }
 
 export interface PresenceState {
