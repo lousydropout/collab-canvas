@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 
-export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>) {
+export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorMoved?: (event: any) => void) {
   const { user } = useAuth()
   const [state, setState] = useState<CanvasState>({
     objects: [],
@@ -145,9 +145,11 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
   // Handle cursor movement from other users
   const handleRealtimeCursorMoved = useCallback((event: any) => {
-    // For now, just log cursor movements - will be used for rendering cursors later
     console.log('👆 Other user cursor moved:', event.display_name, event.position)
-  }, [])
+    if (onCursorMoved) {
+      onCursorMoved(event)
+    }
+  }, [onCursorMoved])
 
   // Initialize realtime integration
   const realtime = useRealtime({

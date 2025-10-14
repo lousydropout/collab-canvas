@@ -158,17 +158,21 @@ export function useRealtime({
   const broadcastCursorMoved = useCallback(async (position: { x: number; y: number }) => {
     if (!channelRef.current || !user || !profile?.display_name) return
 
-    console.log('👆 Broadcasting cursor position:', position)
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'cursor_moved',
-      payload: {
-        user_id: user.id,
-        display_name: profile.display_name,
-        position,
-        timestamp: new Date().toISOString(),
-      },
-    })
+    console.log('📡 Broadcasting cursor position:', position)
+    try {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'cursor_moved',
+        payload: {
+          user_id: user.id,
+          display_name: profile.display_name,
+          position,
+          timestamp: new Date().toISOString(),
+        },
+      })
+    } catch (error) {
+      console.warn('⚠️ Failed to broadcast cursor position:', error)
+    }
   }, [user, profile])
 
   // Update selected objects in presence
@@ -201,7 +205,10 @@ export function useRealtime({
     // Create main canvas channel for object synchronization
     const channel = supabase.channel(`canvas:${canvasId}`, {
       config: {
-        broadcast: { self: true }, // Allow receiving broadcasts (we'll filter our own)
+        broadcast: { 
+          self: true,     // Allow receiving broadcasts (we'll filter our own)
+          ack: false      // Don't wait for acknowledgments to improve performance
+        },
       },
     })
 
@@ -274,9 +281,11 @@ export function useRealtime({
         }
       })
       .on('broadcast', { event: 'cursor_moved' }, (payload) => {
-        console.log('👆 Broadcast cursor_moved received:', payload.payload)
+        const cursorData = payload.payload as RealtimeEvents['cursor_moved']
+        console.log('📥 Cursor broadcast received:', cursorData.display_name, cursorData.position, 
+                   'timestamp:', cursorData.timestamp)
         if (onCursorMoved) {
-          onCursorMoved(payload.payload as RealtimeEvents['cursor_moved'])
+          onCursorMoved(cursorData)
         }
       })
 

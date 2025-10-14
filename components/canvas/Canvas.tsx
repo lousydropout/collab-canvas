@@ -5,6 +5,7 @@ import CanvasStage from './CanvasStage'
 import Grid from './Grid'
 import Rectangle from './Rectangle'
 import KonvaTransformer from './Transformer'
+import Cursor from './Cursor'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useOwnership } from '@/hooks/useOwnership'
 import { useAuth } from '@/hooks/useAuth'
@@ -29,6 +30,28 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   // Cursor position tracking refs
   const cursorThrottleRef = useRef<NodeJS.Timeout | null>(null)
   const lastCursorUpdateRef = useRef<number>(0)
+  
+  // Other users' cursor positions
+  const [otherCursors, setOtherCursors] = useState<Map<string, {
+    userId: string
+    displayName: string
+    position: { x: number; y: number }
+    lastSeen: number
+    color: string
+  }>>(new Map())
+
+  // Generate consistent color for each user based on their ID
+  const getUserColor = useCallback((userId: string) => {
+    const colors = [
+      '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
+    ]
+    let hash = 0
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    return colors[Math.abs(hash) % colors.length]
+  }, [])
 
   // Initialize ownership system first
   const ownership = useOwnership({
@@ -43,6 +66,26 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
       console.log(`🏷️ Ownership rejected: ${event.object_id} (claimed by ${event.current_owner_name})`)
     },
   })
+
+  // Handle cursor movements from other users
+  const handleOtherUserCursor = useCallback((event: any) => {
+    // Don't track our own cursor
+    if (event.user_id === user?.id) return
+    
+    console.log('👆 Rendering cursor for user:', event.display_name, event.position)
+    
+    setOtherCursors(prev => {
+      const updated = new Map(prev)
+      updated.set(event.user_id, {
+        userId: event.user_id,
+        displayName: event.display_name,
+        position: event.position,
+        lastSeen: Date.now(),
+        color: getUserColor(event.user_id)
+      })
+      return updated
+    })
+  }, [user?.id, getUserColor])
 
   const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, realtime } = useCanvas('default', (payload) => {
     // Handle ownership updates
@@ -60,7 +103,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         selectObjects(state.selectedObjects.filter(id => id !== objectId))
       }
     }
-  }, ownership.handleNewObjectCreated)
+  }, ownership.handleNewObjectCreated, handleOtherUserCursor)
 
   // Sync tool state
   useEffect(() => {
@@ -180,7 +223,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     const stage = e.target.getStage()
     const pointerPos = stage.getPointerPosition()
     
-    // Track cursor position for multiplayer cursors (throttled to ~20ms)
+    // Track cursor position for multiplayer cursors (throttled to ~50ms)
     if (pointerPos) {
       const now = Date.now()
       const timeSinceLastUpdate = now - lastCursorUpdateRef.current
@@ -191,8 +234,8 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         y: (pointerPos.y - stage.y()) / stage.scaleY()
       }
       
-      // Throttle cursor updates to ~20ms (50 FPS) using broadcast messages
-      if (timeSinceLastUpdate >= 20) {
+      // Throttle cursor updates to ~50ms (20 FPS) for good responsiveness
+      if (timeSinceLastUpdate >= 50) {
         // Clear any pending throttled update
         if (cursorThrottleRef.current) {
           clearTimeout(cursorThrottleRef.current)
@@ -211,7 +254,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
             lastCursorUpdateRef.current = Date.now()
             cursorThrottleRef.current = null
             console.log('🎯 Cursor position updated (throttled):', stagePos)
-          }, 20 - timeSinceLastUpdate)
+          }, 50 - timeSinceLastUpdate)
         }
       }
     }
@@ -374,6 +417,30 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     }
   }, [])
 
+
+  // Cleanup stale cursors (remove cursors that haven't been seen for 5 seconds)
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now()
+      setOtherCursors(prev => {
+        const updated = new Map(prev)
+        let hasChanges = false
+        
+        for (const [userId, cursor] of updated.entries()) {
+          if (now - cursor.lastSeen > 5000) { // 5 seconds timeout
+            console.log('🧹 Removing stale cursor for user:', cursor.displayName)
+            updated.delete(userId)
+            hasChanges = true
+          }
+        }
+        
+        return hasChanges ? new Map(updated) : prev
+      })
+    }, 1000) // Check every second
+
+    return () => clearInterval(cleanupInterval)
+  }, [])
+
   // Virtual canvas size (larger than viewport for infinite canvas feel)
   const virtualCanvasSize = {
     width: 5000,
@@ -478,6 +545,17 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           selectedIds={state.selectedObjects}
           onUpdate={updateObject}
         />
+        
+        {/* Other users' cursors */}
+        {Array.from(otherCursors.values()).map((cursor) => (
+          <Cursor
+            key={cursor.userId}
+            userId={cursor.userId}
+            displayName={cursor.displayName}
+            position={cursor.position}
+            color={cursor.color}
+          />
+        ))}
         
         {/* Preview rectangle during creation */}
         {previewRect && previewRect.width > 0 && previewRect.height > 0 && (

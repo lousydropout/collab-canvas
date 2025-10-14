@@ -178,16 +178,16 @@ collabcanvas/
 
 ---
 
-### **PR #7: Multiplayer Cursors** 👆
+### **PR #7: Multiplayer Cursors** ✅
 
 **Goal:** Show all users' cursors live.
 
-* [ ] Track local cursor position
-* [ ] Broadcast via presence
-* [ ] Render others' cursors
-* [ ] Show user names/colors
-* [ ] Throttle updates (~20ms)
-* [ ] Remove cursors on disconnect
+* [x] Track local cursor position
+* [x] Broadcast via realtime (switched from presence to broadcast for better performance)
+* [x] Render others' cursors
+* [x] Show user names/colors
+* [x] Throttle updates (50ms/20 FPS for optimal performance)
+* [x] Remove cursors on disconnect
 
 ---
 
