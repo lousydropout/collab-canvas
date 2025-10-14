@@ -17,10 +17,9 @@ interface CanvasProps {
   currentTool: CanvasState['tool']
   currentColor: string
   onToolChange: (tool: CanvasState['tool']) => void
-  onColorChange: (color: string) => void
 }
 
-export default function Canvas({ className = '', currentTool, currentColor, onToolChange, onColorChange }: CanvasProps) {
+export default function Canvas({ className = '', currentTool, currentColor, onToolChange }: CanvasProps) {
   const { user } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
@@ -536,7 +535,6 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
           gridSize={20}
           stroke="#f3f4f6"
           strokeWidth={0.5}
-          scale={currentScale}
         />
         
         {/* Render existing rectangles */}
@@ -552,7 +550,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               object={object}
               isSelected={isSelected}
               onSelect={handleObjectSelect}
-              onUpdate={updateObject}
+              onMove={updateObject}
               ownershipStatus={ownershipStatus}
               ownerInfo={ownerInfo}
               isPendingClaim={isPendingClaim}
@@ -562,16 +560,15 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         })}
         
         {/* Transformer for selected objects */}
-        <KonvaTransformer 
+        <KonvaTransformer
           selectedIds={state.selectedObjects}
-          onUpdate={updateObject}
+          onTransform={updateObject}
         />
         
         {/* Other users' cursors */}
         {Array.from(otherCursors.values()).map((cursor) => (
           <Cursor
             key={cursor.userId}
-            userId={cursor.userId}
             displayName={cursor.displayName}
             position={cursor.position}
             color={cursor.color}

@@ -7,7 +7,7 @@ interface RectangleProps {
   object: CanvasObject
   isSelected?: boolean
   onSelect?: (id: string, event?: any) => void
-  onUpdate?: (id: string, updates: Partial<CanvasObject>) => void
+  onMove?: (id: string, updates: Partial<CanvasObject>) => void
   // Ownership props
   ownershipStatus?: 'available' | 'claimed' | 'claimed_by_me' | 'expired'
   ownerInfo?: { owner_name: string | null; expires_at: string | null } | null
@@ -19,7 +19,7 @@ export default function Rectangle({
   object, 
   isSelected = false, 
   onSelect, 
-  onUpdate,
+  onMove,
   ownershipStatus = 'available',
   ownerInfo,
   isPendingClaim = false,
@@ -175,7 +175,7 @@ export default function Rectangle({
       y: node.y(),
     }
     console.log(`📦 Rectangle moved to: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`)
-    onUpdate?.(object.id, newPos)
+    onMove?.(object.id, newPos)
   }
 
   const ownershipStyling = getOwnershipStyling()

@@ -8,7 +8,6 @@ interface CanvasStageProps {
   width: number
   height: number
   children?: React.ReactNode
-  scale?: number
   onScaleChange?: (scale: number) => void
   onStageClick?: (e: any) => void
   onMouseMove?: (e: any) => void
@@ -17,11 +16,11 @@ interface CanvasStageProps {
   cursor?: string
 }
 
-export default function CanvasStage({ 
-  width, 
-  height, 
-  children, 
-  onScaleChange, 
+export default function CanvasStage({
+  width,
+  height,
+  children,
+  onScaleChange,
   onStageClick,
   onMouseMove,
   onMouseUp,

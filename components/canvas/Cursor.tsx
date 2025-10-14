@@ -3,7 +3,6 @@
 import { Group, Line, Text, Rect } from 'react-konva'
 
 interface CursorProps {
-  userId: string
   displayName: string
   position: {
     x: number
@@ -12,7 +11,7 @@ interface CursorProps {
   color: string
 }
 
-export default function Cursor({ userId, displayName, position, color }: CursorProps) {
+export default function Cursor({ displayName, position, color }: CursorProps) {
   // Generate cursor path (pointer shape)
   const cursorPath = [
     // Cursor pointer shape coordinates

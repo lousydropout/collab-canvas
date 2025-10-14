@@ -82,7 +82,6 @@ export default function CanvasPage() {
             currentTool={currentTool}
             currentColor={currentColor}
             onToolChange={setCurrentTool}
-            onColorChange={setCurrentColor}
           />
         </main>
       </div>

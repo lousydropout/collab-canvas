@@ -6,10 +6,10 @@ import Konva from 'konva'
 
 interface TransformerProps {
   selectedIds: string[]
-  onUpdate?: (id: string, updates: any) => void
+  onTransform?: (id: string, updates: any) => void
 }
 
-export default function KonvaTransformer({ selectedIds, onUpdate }: TransformerProps) {
+export default function KonvaTransformer({ selectedIds, onTransform }: TransformerProps) {
   const transformerRef = useRef<Konva.Transformer>(null)
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function KonvaTransformer({ selectedIds, onUpdate }: TransformerP
         node.height(updates.height)
         
         console.log(`🔄 Object ${id} transformed:`, updates)
-        onUpdate?.(id, updates)
+        onTransform?.(id, updates)
       })
     }
 
@@ -67,7 +67,7 @@ export default function KonvaTransformer({ selectedIds, onUpdate }: TransformerP
     return () => {
       transformer.off('transformend', handleTransformEnd)
     }
-  }, [selectedIds, onUpdate])
+  }, [selectedIds, onTransform])
 
   // Only render if there are selected objects
   if (selectedIds.length === 0) return null
