@@ -90,13 +90,27 @@ export default function Rectangle({
       return
     }
     
-    // Attempt to claim object on selection if not already claimed by me
-    if (ownershipStatus !== 'claimed_by_me' && canInteract && onClaimAttempt) {
-      console.log(`🏷️ Attempting to claim object ${object.id} on selection`)
-      await onClaimAttempt(object.id)
+    // If object is already claimed by me, select immediately
+    if (ownershipStatus === 'claimed_by_me') {
+      onSelect?.(object.id, e)
+      return
     }
     
-    onSelect?.(object.id, e)
+    // Attempt to claim object on selection and only select if claim succeeds
+    if (onClaimAttempt) {
+      console.log(`🏷️ Attempting to claim object ${object.id} on selection`)
+      const claimSucceeded = await onClaimAttempt(object.id)
+      
+      if (claimSucceeded) {
+        console.log(`✅ Claim succeeded, selecting object ${object.id}`)
+        onSelect?.(object.id, e)
+      } else {
+        console.log(`❌ Claim failed, not selecting object ${object.id}`)
+      }
+    } else {
+      // No claim attempt needed (object is available), select directly
+      onSelect?.(object.id, e)
+    }
   }
 
   // Remove real-time drag updates - we'll only update on drag end
