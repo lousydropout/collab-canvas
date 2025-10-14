@@ -34,11 +34,11 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
   return (
     <div className="bg-white border-r border-gray-200 w-16 flex flex-col items-center py-4">
       {/* Tools Section */}
-      <div className="space-y-2">
+      <div className="space-y-2 flex flex-col items-center">
         <Button
           variant={currentTool === 'select' ? 'default' : 'ghost'}
           size="sm"
-          className={`w-10 h-10 p-0 cursor-pointer ${
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
             currentTool === 'select' 
               ? '!bg-blue-600 !text-white hover:!bg-blue-700' 
               : '!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100'
@@ -52,7 +52,7 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
         <Button
           variant={currentTool === 'rectangle' ? 'default' : 'ghost'}
           size="sm"
-          className={`w-10 h-10 p-0 cursor-pointer ${
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
             currentTool === 'rectangle' 
               ? '!bg-blue-600 !text-white hover:!bg-blue-700' 
               : '!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100'
@@ -66,7 +66,7 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
         <Button
           variant="ghost"
           size="sm"
-          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed"
+          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed flex items-center justify-center"
           title="Circle Tool (Coming Soon)"
           disabled
         >
@@ -76,7 +76,7 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
         <Button
           variant="ghost"
           size="sm"
-          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed"
+          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed flex items-center justify-center"
           title="Text Tool (Coming Soon)"
           disabled
         >

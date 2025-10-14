@@ -34,10 +34,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md p-6">
-        <LoginForm onToggleMode={() => router.push('/register')} />
-      </div>
+    <div className="w-full max-w-md p-6">
+      <LoginForm onToggleMode={() => router.push('/register')} />
     </div>
   )
 }
