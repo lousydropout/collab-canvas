@@ -191,15 +191,15 @@ collabcanvas/
 
 ---
 
-### **PR #8: User List & Presence Awareness** 👥
+### **PR #8: User List & Presence Awareness** ✅
 
 **Goal:** Display online users and statuses.
 
-* [ ] Create user list sidebar
-* [ ] Show avatars and colors
-* [ ] Track join/leave
-* [ ] Match cursor colors
-* [ ] Add logout function
+* [x] Create user list modal (implemented as modal instead of sidebar for better UX)
+* [x] Show avatars and colors (consistent color generation based on user ID)
+* [x] Track join/leave (presence channel with sync, join, leave events)
+* [x] Match cursor colors (same color generation algorithm for cursors and avatars)
+* [x] Add logout function (implemented in Header component with proper auth flow)
 
 ---
 
