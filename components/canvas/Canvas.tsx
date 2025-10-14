@@ -262,10 +262,20 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           console.log('📋 Duplicated selected objects')
         }
       } else if (e.key === 'Escape') {
-        // Deselect all and release ownership
-        selectObjects([])
-        ownership.releaseAllObjects()
-        console.log('🚫 Deselected all objects and released ownership')
+        e.preventDefault()
+        
+        // Cancel rectangle creation if in progress
+        if (isCreatingRect) {
+          setIsCreatingRect(false)
+          setCreatingRect(null)
+          onToolChange('select')
+          console.log('🚫 Cancelled rectangle creation')
+        } else {
+          // Deselect all and release ownership
+          selectObjects([])
+          ownership.releaseAllObjects()
+          console.log('🚫 Deselected all objects and released ownership')
+        }
       }
     }
 
@@ -273,7 +283,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership])
+  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, onToolChange])
 
   // Virtual canvas size (larger than viewport for infinite canvas feel)
   const virtualCanvasSize = {
