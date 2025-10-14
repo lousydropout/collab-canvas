@@ -8,7 +8,7 @@ import { useRealtime } from './useRealtime'
 import { loadColorFromLocalStorage, saveColorToLocalStorage } from '@/lib/colorUtils'
 
 export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorMoved?: (event: any) => void) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [state, setState] = useState<CanvasState>({
     objects: [],
     selectedObjects: [],
@@ -237,6 +237,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         selectedObjects: [data.id],
       }))
 
+      // Initialize ownership state for the creator (since we skip broadcast handling for our own objects)
+      if (onNewObjectCreated) {
+        console.log('🏷️ Initializing ownership state for creator:', data.id)
+        await onNewObjectCreated(data, user.id, profile?.display_name)
+      }
+
       // Broadcast to other clients
       await realtime.broadcastObjectCreated(data)
 
@@ -366,6 +372,14 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         objects: [...prev.objects, ...data],
         selectedObjects: data.map(obj => obj.id),
       }))
+      
+      // Initialize ownership state for the creator (since we skip broadcast handling for our own objects)
+      if (onNewObjectCreated) {
+        console.log('🏷️ Initializing ownership state for duplicated objects:', data.map(obj => obj.id))
+        for (const obj of data) {
+          await onNewObjectCreated(obj, user.id, profile?.display_name)
+        }
+      }
       
       // Broadcast to other clients
       await realtime.broadcastObjectsDuplicated(objectIds, data)

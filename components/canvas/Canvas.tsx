@@ -57,18 +57,25 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     return colors[Math.abs(hash) % colors.length]
   }, [])
 
+  // Memoize ownership callbacks to prevent infinite re-renders
+  const onOwnershipClaimed = useCallback((event: any) => {
+    console.log(`🏷️ Ownership claimed: ${event.object_id} by ${event.owner_name}`)
+  }, [])
+
+  const onOwnershipReleased = useCallback((event: any) => {
+    console.log(`🏷️ Ownership released: ${event.object_id}`)
+  }, [])
+
+  const onOwnershipRejected = useCallback((event: any) => {
+    console.log(`🏷️ Ownership rejected: ${event.object_id} (claimed by ${event.current_owner_name})`)
+  }, [])
+
   // Initialize ownership system first
   const ownership = useOwnership({
     canvasId: 'default',
-    onOwnershipClaimed: (event) => {
-      console.log(`🏷️ Ownership claimed: ${event.object_id} by ${event.owner_name}`)
-    },
-    onOwnershipReleased: (event) => {
-      console.log(`🏷️ Ownership released: ${event.object_id}`)
-    },
-    onOwnershipRejected: (event) => {
-      console.log(`🏷️ Ownership rejected: ${event.object_id} (claimed by ${event.current_owner_name})`)
-    },
+    onOwnershipClaimed,
+    onOwnershipReleased,
+    onOwnershipRejected,
   })
 
   // Handle cursor movements from other users

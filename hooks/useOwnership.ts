@@ -20,7 +20,6 @@ export function useOwnership({
 }: UseOwnershipProps) {
   const { user, profile } = useAuth()
   const [ownershipState, setOwnershipState] = useState<OwnershipState>({})
-  const [isConnected, setIsConnected] = useState(false)
   
   // Track pending claims to show loading states
   const pendingClaimsRef = useRef<Set<string>>(new Set())
@@ -66,6 +65,7 @@ export function useOwnership({
     if (!user) return
 
     const initializeOwnership = async () => {
+      console.log('🏷️ Initializing ownership state from existing objects')
       const { data: objects, error } = await supabase
         .from('canvas_objects')
         .select('id, owner')
@@ -95,21 +95,23 @@ export function useOwnership({
 
       objects?.forEach(obj => {
         if (obj.owner !== 'all') {
+          const isMyObject = obj.owner === user.id
           initialState[obj.id] = {
             owner_id: obj.owner,
-            owner_name: ownerProfiles[obj.owner] || 'Unknown User',
+            owner_name: isMyObject ? (profile?.display_name || 'You') : (ownerProfiles[obj.owner] || 'Unknown User'),
             claimed_at: new Date().toISOString(), // Approximate
             expires_at: new Date(Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS).toISOString(),
-            is_claimed_by_me: obj.owner === user.id,
+            is_claimed_by_me: isMyObject,
           }
         }
       })
       
+      console.log(`🏷️ Initialized ownership state for ${Object.keys(initialState).length} objects`)
       setOwnershipState(initialState)
     }
 
     initializeOwnership()
-  }, [user])
+  }, [user, profile])
 
   // Claim an object (simple owner field approach)
   const claimObject = useCallback(async (objectId: string): Promise<boolean> => {
@@ -229,19 +231,46 @@ export function useOwnership({
     try {
       console.log(`🏷️ Releasing object: ${objectId}`)
 
-      // Set owner back to 'all' if currently owned by this user
-      const { error } = await supabase
+      // First, check what the current owner is
+      const { data: currentObject, error: fetchError } = await supabase
+        .from('canvas_objects')
+        .select('owner, created_by')
+        .eq('id', objectId)
+        .single()
+
+      if (fetchError) {
+        console.error('❌ Error fetching object for release:', fetchError)
+        return false
+      }
+
+      console.log(`🔍 Current object state: owner=${currentObject.owner}, created_by=${currentObject.created_by}, user.id=${user.id}`)
+
+      // Check if we actually own this object
+      if (currentObject.owner !== user.id) {
+        console.warn(`⚠️ Cannot release object ${objectId}: not owned by current user (owner: ${currentObject.owner})`)
+        return false
+      }
+
+      // Set owner back to 'all' - we know we own it from the check above
+      const { data, error } = await supabase
         .from('canvas_objects')
         .update({ 
           owner: 'all' 
         })
         .eq('id', objectId)
-        .eq('owner', user.id) // Only release if we own it
+        .select()
 
       if (error) {
         console.error('❌ Error releasing object:', error)
         return false
       }
+
+      if (!data || data.length === 0) {
+        console.warn(`⚠️ No rows updated for object ${objectId}. This should not happen.`)
+        return false
+      }
+
+      console.log(`✅ Database update successful for object ${objectId}:`, data[0])
 
       // Clear local state
       setOwnershipState(prev => ({
@@ -298,16 +327,16 @@ export function useOwnership({
 
   // Handle newly created objects from realtime broadcasts
   const handleNewObjectCreated = useCallback(async (object: any, creatorUserId: string, creatorDisplayName?: string) => {
+    console.log(`🏷️ Handling new object created: ${object.id}, owner: ${object.owner}, creator: ${creatorUserId}`)
+    
     // Only process if object has an owner that's not 'all'
     if (object.owner && object.owner !== 'all') {
-      // Skip if this is our own object (we already have ownership state)
-      if (object.owner === user?.id) {
-        return
-      }
+      // Determine if this is our own object
+      const isMyObject = object.owner === user?.id
       
       // Use provided display name or fetch it
       let ownerName = creatorDisplayName || 'Unknown User'
-      if (!creatorDisplayName) {
+      if (!creatorDisplayName && !isMyObject) {
         try {
           const { data: profile } = await supabase
             .from('profiles')
@@ -319,6 +348,9 @@ export function useOwnership({
         } catch (error) {
           console.warn('Failed to fetch creator display name:', error)
         }
+      } else if (isMyObject) {
+        // For our own objects, use our profile name
+        ownerName = profile?.display_name || 'You'
       }
       
       // Update ownership state
@@ -329,13 +361,23 @@ export function useOwnership({
           owner_name: ownerName,
           claimed_at: new Date().toISOString(),
           expires_at: new Date(Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS).toISOString(),
-          is_claimed_by_me: false,
+          is_claimed_by_me: isMyObject,
         }
       }))
       
-      console.log(`🏷️ Added ownership state for new object ${object.id} owned by ${ownerName}`)
+      // Set up auto-release timer for our own objects
+      if (isMyObject) {
+        const timeoutId = setTimeout(() => {
+          console.log(`⏰ Auto-releasing expired claim: ${object.id}`)
+          releaseObject(object.id)
+        }, OWNERSHIP_CONFIG.CLAIM_DURATION_MS)
+        
+        cleanupTimersRef.current.set(object.id, timeoutId)
+      }
+      
+      console.log(`🏷️ Added ownership state for new object ${object.id} owned by ${ownerName} (isMyObject: ${isMyObject})`)
     }
-  }, [user])
+  }, [user, profile, releaseObject])
 
   // Handle ownership changes from canvas_objects realtime updates
   const handleCanvasObjectUpdate = useCallback((payload: any) => {
@@ -426,7 +468,7 @@ export function useOwnership({
     // State
     ownershipState,
     pendingClaims,
-    isConnected: true, // Always connected since we use canvas_objects updates
+    isConnected: true, // Always connected since we use direct database operations
     
     // Actions
     claimObject,
