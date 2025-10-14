@@ -118,11 +118,6 @@ export default function CanvasStage({
         {(stageScale * 100).toFixed(0)}%
       </div>
       
-      {/* Pan Position Indicator */}
-      <div className="absolute top-4 right-4 z-10 bg-black/70 text-white px-3 py-1 rounded text-sm font-mono">
-        ({stagePos.x.toFixed(0)}, {stagePos.y.toFixed(0)})
-      </div>
-      
       <Stage
         ref={stageRef}
         width={width}
