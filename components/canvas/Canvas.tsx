@@ -15,10 +15,12 @@ import { CanvasState } from '@/types/canvas'
 interface CanvasProps {
   className?: string
   currentTool: CanvasState['tool']
+  currentColor: string
   onToolChange: (tool: CanvasState['tool']) => void
+  onColorChange: (color: string) => void
 }
 
-export default function Canvas({ className = '', currentTool, onToolChange }: CanvasProps) {
+export default function Canvas({ className = '', currentTool, currentColor, onToolChange, onColorChange }: CanvasProps) {
   const { user } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
@@ -89,7 +91,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     })
   }, [user?.id, getUserColor])
 
-  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, realtime } = useCanvas('default', (payload) => {
+  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', (payload) => {
     // Handle ownership updates
     ownership.handleCanvasObjectUpdate(payload)
     
@@ -107,10 +109,17 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     }
   }, ownership.handleNewObjectCreated, handleOtherUserCursor)
 
-  // Sync tool state
+  // Sync tool and color state
   useEffect(() => {
     setTool(currentTool)
   }, [currentTool, setTool])
+
+  // Sync color changes from parent to internal state
+  useEffect(() => {
+    if (currentColor !== state.currentColor) {
+      setColor(currentColor)
+    }
+  }, [currentColor, state.currentColor, setColor])
 
   // Update canvas dimensions based on container size
   useEffect(() => {
@@ -199,7 +208,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           y,
           width: finalWidth,
           height: finalHeight,
-          color: '#3b82f6',
+          color: state.currentColor,
         })
         
         console.log('✅ Rectangle created!')
@@ -309,7 +318,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           y,
           width,
           height,
-          color: '#3b82f6',
+          color: state.currentColor,
         })
         
         console.log('✅ Rectangle created via drag!')
@@ -573,7 +582,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
               y: previewRect.y,
               width: previewRect.width,
               height: previewRect.height,
-              color: '#3b82f6',
+              color: state.currentColor,
               rotation: 0,
               owner: 'all',
               created_by: null,

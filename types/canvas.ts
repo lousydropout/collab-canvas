@@ -29,6 +29,7 @@ export interface CanvasState {
   selectedObjects: string[]
   tool: 'select' | 'rectangle' | 'circle' | 'text'
   isCreating: boolean
+  currentColor: string
 }
 
 export interface CreateObjectPayload {

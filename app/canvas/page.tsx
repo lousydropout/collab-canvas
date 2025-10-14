@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import Header from '@/components/layout/Header'
 import Toolbar from '@/components/layout/Toolbar'
 import { CanvasState } from '@/types/canvas'
+import { loadColorFromLocalStorage } from '@/lib/colorUtils'
 
 // Dynamically import Canvas with SSR disabled to prevent server-side rendering issues
 const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
@@ -22,6 +23,7 @@ export default function CanvasPage() {
   const { user, profile, loading, signOut } = useAuth()
   const router = useRouter()
   const [currentTool, setCurrentTool] = useState<CanvasState['tool']>('select')
+  const [currentColor, setCurrentColor] = useState(loadColorFromLocalStorage())
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -68,7 +70,9 @@ export default function CanvasPage() {
         {/* Toolbar */}
         <Toolbar 
           currentTool={currentTool}
+          currentColor={currentColor}
           onToolChange={setCurrentTool}
+          onColorChange={setCurrentColor}
         />
         
         {/* Canvas */}
@@ -76,7 +80,9 @@ export default function CanvasPage() {
           <Canvas 
             className="w-full h-full" 
             currentTool={currentTool}
+            currentColor={currentColor}
             onToolChange={setCurrentTool}
+            onColorChange={setCurrentColor}
           />
         </main>
       </div>

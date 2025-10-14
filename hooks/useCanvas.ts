@@ -5,6 +5,7 @@ import { CanvasObject, CanvasState, CreateObjectPayload } from '@/types/canvas'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
+import { loadColorFromLocalStorage, saveColorToLocalStorage } from '@/lib/colorUtils'
 
 export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorMoved?: (event: any) => void) {
   const { user } = useAuth()
@@ -13,6 +14,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     selectedObjects: [],
     tool: 'select',
     isCreating: false,
+    currentColor: loadColorFromLocalStorage(),
   })
 
   // Track operations initiated by this client to avoid infinite loops
@@ -206,7 +208,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         y: payload.y,
         width: payload.width,
         height: payload.height,
-        color: payload.color || '#3b82f6',
+        color: payload.color || state.currentColor,
         rotation: payload.rotation || 0,
         owner: user.id, // Creator automatically owns the object
         created_by: user.id,
@@ -382,6 +384,13 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     }))
   }, [])
 
+  // Set color
+  const setColor = useCallback((color: string) => {
+    console.log('🎨 Color changed to:', color)
+    saveColorToLocalStorage(color)
+    setState(prev => ({ ...prev, currentColor: color }))
+  }, [])
+
   // Load objects on mount
   useEffect(() => {
     loadObjects()
@@ -395,6 +404,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     duplicateObjects,
     selectObjects,
     setTool,
+    setColor,
     loadObjects,
     // Realtime state and methods
     realtime,

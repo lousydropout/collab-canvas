@@ -67,9 +67,9 @@ export default function Rectangle({
       case 'available':
       default:
         return {
-          stroke: isSelected ? '#0066ff' : undefined,
+          stroke: isSelected ? object.color : undefined,
           strokeWidth: isSelected ? 2 : undefined,
-          shadowColor: isSelected ? '#0066ff' : undefined,
+          shadowColor: isSelected ? object.color : undefined,
           shadowBlur: isSelected ? 10 : undefined,
           shadowOpacity: isSelected ? 0.3 : undefined,
         }
