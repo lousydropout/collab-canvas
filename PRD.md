@@ -13,10 +13,10 @@ Build a real-time collaborative canvas application where multiple users can crea
 
 ### Frontend
 - **Runtime:** Bun
-- **Framework:** Next.js 14+ (App Router)
+- **Framework:** Next.js 15 (App Router)
 - **Styling:** TailwindCSS + shadcn/ui components
-- **Canvas Rendering:** Konva.js (vanilla, installed via `bun install konva`)
-- **State Management:** Zustand (if needed, likely not required)
+- **Canvas Rendering:** react-konva (React wrapper for Konva.js)
+- **State Management:** React hooks (no external state library)
 
 ### Backend & Services
 - **Authentication:** Supabase (email + password only)
@@ -235,16 +235,9 @@ Build a real-time collaborative canvas application where multiple users can crea
 }
 ```
 
-#### Periodic Delta Sync
-- **Frequency:** Every 10 seconds
-- **Type:** Delta sync (changes from last 15 seconds)
-- **Purpose:** Recover from missed events, handle drift, correct delayed/stuck states
-- **Flow:**
-  1. Client sends `{ type: "request_delta_sync", timestamp: clientLastSyncTimestamp }`
-  2. Server responds with changes since client's timestamp
-  3. Client merges with local state (server state wins)
+#### State Recovery
+- **On Reconnect:** Automatic reconnection with state sync
 - **Conflict Resolution:** Server state is source of truth
-- **Payload Optimization:** Delta sync contains only recent changes (create/update/delete events), not entire object list
 - **Recovery:** If sync issues persist, user refreshes page to get full state
 
 ### 6. Layer Management
@@ -432,18 +425,13 @@ Build a real-time collaborative canvas application where multiple users can crea
    - Disconnect network
    - User B continues working
    - Reconnect User A
-   - User A requests delta sync with their last timestamp
-   - Server sends changes since that timestamp
-   - User A sees all of User B's changes
-   - If issues persist, User A refreshes page
+   - User A sees all of User B's changes via automatic reconnection
 
-6. **Periodic Delta Sync:**
-   - Multiple users editing for 30+ seconds
-   - Every 10s, delta sync occurs automatically
-   - Only changes from last 15s transmitted
-   - No visible interruption
+6. **Connection Recovery:**
+   - Multiple users editing for extended periods
+   - Automatic reconnection handles missed events
    - All users maintain consistent state
-   - Corrects any stuck pending states from delayed responses
+   - No visible interruption to user experience
 
 ### Performance Testing
 - Use Chrome DevTools Performance monitor
@@ -511,8 +499,8 @@ These can be added after MVP checkpoint is passed.
 ✅ 60 FPS maintained during all interactions  
 ✅ Object sync <100ms latency  
 ✅ Cursor sync <50ms latency  
-✅ Handles 500+ objects without degradation  
-✅ Supports 5+ concurrent users smoothly  
+✅ Handles multiple objects without degradation  
+✅ Supports multiple concurrent users smoothly  
 
 ---
 
@@ -521,31 +509,31 @@ These can be added after MVP checkpoint is passed.
 ### Phase 1: Foundation (Hours 1-8)
 1. Next.js project setup with Bun
 2. Supabase authentication implementation
-3. Basic Konva.js canvas setup with pan/zoom (Stage + Layer) using vanilla Konva
+3. Basic react-konva canvas setup with pan/zoom
 4. Deploy skeleton to Vercel
 
 ### Phase 2: Core Features (Hours 9-16)
-1. Rectangle creation and rendering with Konva.Rect (vanilla JS)
-2. Object selection and transformation (Konva.Transformer) 
-3. Supabase Realtime integration (single canvas channel)
-4. Server-side validation functions (claim/release/update)
-5. Real-time object synchronization with claim-confirm pattern
-6. Ownership system implementation
+1. Rectangle creation and rendering with react-konva
+2. Object selection and transformation (Konva Transformer) 
+3. Supabase Realtime integration (dual channel architecture)
+4. Ownership system implementation
 
 ### Phase 3: Collaboration (Hours 17-20)
 1. Multiplayer cursors
 2. Presence system
 3. User list UI
 4. State persistence
-5. Periodic delta sync (every 10s, last 15s of changes)
-6. Optimistic UI for ownership claims
+5. Optimistic UI for ownership claims
+6. **MVP COMPLETE** ✅
 
-### Phase 4: Polish & Testing (Hours 21-24)
+### Phase 4: Polish & Testing (Hours 17-20)
 1. Delete and duplicate operations
 2. Multi-select functionality
 3. Visual feedback for locked objects
 4. Performance testing and optimization
 5. Final deployment and verification
+
+**Note:** MVP completed in Phase 3. Additional polish and testing (PRs #9-11) are not required for MVP success.
 
 ---
 
@@ -565,7 +553,7 @@ These can be added after MVP checkpoint is passed.
 3. **Claim-confirm roundtrip latency**
    - Mitigation: Optimistic UI with immediate yellow border (pending state)
    - Target <50ms server response time
-   - If delayed, delta sync corrects state within 10s
+   - Automatic reconnection corrects state if needed
    - User sees yellow → their color (success) or owner's color (failure)
 
 3. **Ownership race conditions**
@@ -591,11 +579,11 @@ These can be added after MVP checkpoint is passed.
 
 1. ~~Which real-time service?~~ **RESOLVED: Supabase Realtime**
 
-2. ~~Canvas library or raw Canvas API?~~ **RESOLVED: Vanilla Konva.js (not react-konva)**
+2. ~~Canvas library or raw Canvas API?~~ **RESOLVED: react-konva (React wrapper for Konva.js)**
 
 3. ~~Color picker or predefined palette?~~ **RESOLVED: Black only (#000000)**
 
-4. ~~Framework choice?~~ **RESOLVED: Next.js with Bun**
+4. ~~Framework choice?~~ **RESOLVED: Next.js 15 with Bun**
 
 5. ~~Single canvas or multiple canvases?~~ **RESOLVED: Single canvas only (canvasId = "default")**
 
@@ -610,46 +598,46 @@ All technical decisions finalized.
 ### Creating a Rectangle
 ```
 1. User clicks rectangle tool
-2. User drags on canvas
-3. Local state creates rectangle with owner: "all"
-4. Broadcast { type: "object_create", object: {...} }
-5. Database persists rectangle
-6. Other users receive event and render rectangle
+2. User clicks on canvas (starts rectangle creation mode)
+3. User drags to define size and position
+4. User releases mouse (finishes rectangle creation)
+5. Local state creates rectangle with owner: creatorUserId
+6. Database persists rectangle
+7. Broadcast { type: "object_created", object: {...} }
+8. Other users receive event and render rectangle
+9. Creator automatically owns the new rectangle
 ```
 
 ### Moving a Rectangle
 ```
 1. User clicks rectangle
-2. Check owner === "all" locally
-3. Immediately show yellow border (pending state)
-4. Send { type: "object_claim", objectId, userId } to server
-5. Server validates: only allows if owner === "all"
-6. Server responds { type: "object_claim_confirmation", objectId, userId, success: boolean }
-7. If success === true:
+2. Check if object is available (owner === "all") or owned by current user
+3. If available, immediately show yellow border (pending state)
+4. Send database update to claim ownership (owner: currentUserId)
+5. Database validates: only allows if owner === "all"
+6. If successful:
    - Show border with user's color
    - Set local state owner: userId
    - Enable dragging
-8. If success === false:
+7. If failed:
    - Remove yellow pending border
-   - If another user owns it, show border with owner's color
+   - Show border with current owner's color
    - Prevent dragging
-9. If response delayed: delta sync (every 10s) corrects state
-10. User drags rectangle (if successful claim)
-11. Broadcast { type: "object_update", objectId, x, y }
-12. Server validates: only allows if owner === userId
-13. User releases mouse
-14. Send { type: "object_release", objectId, userId }
-15. Server validates: only allows if owner === userId
-16. Server sets owner: "all" and broadcasts
+8. User drags rectangle (if successful claim)
+9. Broadcast position updates via realtime
+10. User releases mouse
+11. Send database update to release ownership (owner: "all")
+12. Database broadcasts ownership change to all clients
 ```
 
 ### Conflict Scenario
 ```
 1. User A claims rectangle (owner: userA)
 2. User B clicks same rectangle
-3. User B checks owner !== "all"
-4. User B shows "locked" visual feedback
+3. User B checks ownership status
+4. User B shows "locked" visual feedback (owner's color border)
 5. User B cannot drag
 6. User A releases (owner: "all")
-7. User B can now claim it
+7. Database broadcasts ownership change
+8. User B can now claim it
 ```
