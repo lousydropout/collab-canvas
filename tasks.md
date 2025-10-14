@@ -175,8 +175,6 @@ collabcanvas/
 * [x] Fix real-time synchronization of ownership changes
 * [x] Add automatic ownership release on window blur/close
 * [x] Update object creation to automatically assign creator as owner
-* [x] Confirmed: No need for separate object_ownership table (owner field is sufficient)
-* [x] Applied cleanup migration to ensure no object_ownership table exists
 
 ---
 
