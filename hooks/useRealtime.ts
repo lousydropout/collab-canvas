@@ -5,6 +5,7 @@ import { RealtimeChannel, REALTIME_LISTEN_TYPES } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { RealtimeEvents, PresenceState, RealtimeState, CanvasObject } from '@/types/realtime'
 import { useAuth } from './useAuth'
+import { AuthService } from '@/lib/supabase/auth'
 
 interface UseRealtimeProps {
   canvasId: string
@@ -36,10 +37,43 @@ export function useRealtime({
   
   const channelRef = useRef<RealtimeChannel | null>(null)
   const presenceChannelRef = useRef<RealtimeChannel | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isReconnectingRef = useRef(false)
+
+  // Validate session before operations
+  const validateSession = useCallback(async () => {
+    try {
+      const session = await AuthService.getCurrentSession()
+      if (!session) {
+        console.warn('⚠️ No valid session found, attempting to refresh...')
+        return false
+      }
+      
+      // Check if session is expired (with 5 minute buffer)
+      const now = Math.floor(Date.now() / 1000)
+      const expiresAt = session.expires_at || 0
+      if (expiresAt - now < 300) { // 5 minutes buffer
+        console.warn('⚠️ Session expires soon, attempting to refresh...')
+        return false
+      }
+      
+      return true
+    } catch (error) {
+      console.error('❌ Session validation failed:', error)
+      return false
+    }
+  }, [])
 
   // Broadcast an object creation
   const broadcastObjectCreated = useCallback(async (object: CanvasObject) => {
     if (!channelRef.current || !user || !profile) return
+
+    // Validate session before broadcasting
+    const isValidSession = await validateSession()
+    if (!isValidSession) {
+      console.warn('⚠️ Invalid session, skipping broadcast')
+      return
+    }
 
     console.log('📡 Broadcasting object created:', object.id, 'by', profile.display_name)
     await channelRef.current.send({
@@ -51,11 +85,18 @@ export function useRealtime({
         creatorDisplayName: profile.display_name,
       },
     })
-  }, [user, profile])
+  }, [user, profile, validateSession])
 
   // Broadcast an object update
   const broadcastObjectUpdated = useCallback(async (object: CanvasObject) => {
     if (!channelRef.current || !user) return
+
+    // Validate session before broadcasting
+    const isValidSession = await validateSession()
+    if (!isValidSession) {
+      console.warn('⚠️ Invalid session, skipping broadcast')
+      return
+    }
 
     console.log('📡 Broadcasting object updated:', object.id)
     await channelRef.current.send({
@@ -66,7 +107,7 @@ export function useRealtime({
         user_id: user.id,
       },
     })
-  }, [user])
+  }, [user, validateSession])
 
   // Broadcast an object deletion
   const broadcastObjectDeleted = useCallback(async (objectId: string) => {
@@ -158,6 +199,13 @@ export function useRealtime({
   const broadcastCursorMoved = useCallback(async (position: { x: number; y: number }) => {
     if (!channelRef.current || !user || !profile?.display_name) return
 
+    // Validate session before broadcasting
+    const isValidSession = await validateSession()
+    if (!isValidSession) {
+      console.warn('⚠️ Invalid session, skipping cursor broadcast')
+      return
+    }
+
     console.log('📡 Broadcasting cursor position:', position)
     try {
       await channelRef.current.send({
@@ -172,8 +220,57 @@ export function useRealtime({
       })
     } catch (error) {
       console.warn('⚠️ Failed to broadcast cursor position:', error)
+      // If broadcast fails due to auth, trigger reconnection
+      if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
+        console.warn('🔄 401 error detected, triggering reconnection...')
+        triggerReconnection()
+      }
     }
-  }, [user, profile])
+  }, [user, profile, validateSession])
+
+  // Trigger reconnection when auth issues are detected
+  const triggerReconnection = useCallback(() => {
+    if (isReconnectingRef.current) {
+      console.log('🔄 Reconnection already in progress, skipping...')
+      return
+    }
+
+    console.log('🔄 Triggering reconnection due to auth issues...')
+    isReconnectingRef.current = true
+    
+    // Clear existing timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+
+    // Set a timeout to attempt reconnection
+    reconnectTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log('🔄 Attempting to reconnect channels...')
+        
+        // Clean up existing channels
+        if (channelRef.current) {
+          supabase.removeChannel(channelRef.current)
+          channelRef.current = null
+        }
+        if (presenceChannelRef.current) {
+          supabase.removeChannel(presenceChannelRef.current)
+          presenceChannelRef.current = null
+        }
+
+        // Wait a moment for cleanup
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        // Reinitialize channels (this will be handled by the main useEffect)
+        console.log('🔄 Channels cleaned up, reinitializing...')
+        
+      } catch (error) {
+        console.error('❌ Reconnection failed:', error)
+      } finally {
+        isReconnectingRef.current = false
+      }
+    }, 2000) // Wait 2 seconds before attempting reconnection
+  }, [])
 
   // Update selected objects in presence
   const updateSelectedObjects = useCallback(async (selectedObjects: string[]) => {
@@ -201,6 +298,34 @@ export function useRealtime({
     }
 
     console.log('🚀 Setting up realtime channels for canvas:', canvasId)
+    
+    // Listen for auth state changes to handle session refresh
+    const { data: { subscription: authSubscription } } = AuthService.onAuthStateChange(async (event, session) => {
+      console.log('🔐 Auth state changed:', event, session ? 'session exists' : 'no session')
+      
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('🚪 User signed out, cleaning up channels...')
+        // Clean up channels when user signs out
+        if (channelRef.current) {
+          supabase.removeChannel(channelRef.current)
+          channelRef.current = null
+        }
+        if (presenceChannelRef.current) {
+          supabase.removeChannel(presenceChannelRef.current)
+          presenceChannelRef.current = null
+        }
+        setState({
+          isConnected: false,
+          onlineUsers: [],
+          error: null,
+        })
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        console.log('🔄 Token refreshed, channels should reconnect automatically...')
+        // Supabase should automatically reconnect channels with new token
+        // Reset reconnection flag
+        isReconnectingRef.current = false
+      }
+    })
     
     // Create main canvas channel for object synchronization
     const channel = supabase.channel(`canvas:${canvasId}`, {
@@ -368,6 +493,18 @@ export function useRealtime({
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up realtime channels')
+      
+      // Clean up auth subscription
+      if (authSubscription) {
+        authSubscription.unsubscribe()
+      }
+      
+      // Clear reconnection timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
+      
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
         channelRef.current = null
@@ -382,7 +519,7 @@ export function useRealtime({
         error: null,
       })
     }
-  }, [user, profile, canvasId, onObjectCreated, onObjectUpdated, onObjectDeleted, onObjectsDeleted, onObjectsDuplicated])
+  }, [user, profile, canvasId, onObjectCreated, onObjectUpdated, onObjectDeleted, onObjectsDeleted, onObjectsDuplicated, validateSession, triggerReconnection])
 
   // Track presence once profile is loaded (separate effect to handle async profile loading)
   useEffect(() => {

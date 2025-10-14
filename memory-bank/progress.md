@@ -37,6 +37,11 @@
 
 ## What's Left to Build 🔄
 
+### User Experience (PR #8 - Bug Fix)
+- **Auto-reconnect** - Ensure disconnected users auto reconnect without requiring page refresh
+- **Connection Recovery** - Graceful reconnection with state sync
+- **Error Handling** - Better handling of network disconnections
+
 ### State Consistency (PR #9)
 - **Delta Sync API** - Server endpoint for state recovery
 - **Periodic Sync** - Every 10 seconds, sync last 15 seconds of changes
@@ -65,7 +70,7 @@
 - **PR #5** ✅ Supabase Realtime Integration
 - **PR #6** ✅ Ownership System with Claim-Confirm
 - **PR #7** ✅ Multiplayer Cursors
-- **PR #8** ✅ User List & Presence Awareness
+- **PR #8** 🔄 User List & Presence Awareness (with auto-reconnect bug fix)
 
 ### In Progress
 - **PR #9** 🔄 Periodic Delta Sync

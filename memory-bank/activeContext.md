@@ -13,14 +13,21 @@ The CollabCanvas MVP is in **Phase 3: Collaboration** with core real-time featur
 
 ## Current Focus Areas
 
-### 1. Periodic Delta Sync (PR #9)
+### 1. Auto-reconnect Bug Fix (PR #8)
+**Status:** In Progress
+- **Goal:** Ensure disconnected users auto reconnect without requiring page refresh
+- **Implementation:** Improve Supabase realtime connection handling
+- **Testing:** Test network disconnection and reconnection scenarios
+- **User Experience:** Seamless reconnection without manual intervention
+
+### 2. Periodic Delta Sync (PR #9)
 **Status:** In Progress
 - **Goal:** Ensure state consistency across disconnections
 - **Implementation:** API endpoint for delta sync
 - **Frequency:** Every 10 seconds, sync last 15 seconds of changes
 - **Recovery:** Graceful reconnection with state sync
 
-### 2. Performance Optimization (PR #10)
+### 3. Performance Optimization (PR #10)
 **Status:** Pending
 - **Goal:** Maintain 60 FPS with 500+ objects
 - **Optimizations:** Layer caching, viewport culling, debouncing
@@ -40,10 +47,11 @@ The CollabCanvas MVP is in **Phase 3: Collaboration** with core real-time featur
 3. **Error Recovery** - Better handling of network disconnections
 
 ### Next Immediate Steps
-1. **Implement Delta Sync API** - Server endpoint for state recovery
-2. **Add Performance Monitoring** - Track FPS and sync latency
-3. **Test with Multiple Users** - Verify 5+ user performance
-4. **Polish UI/UX** - Improve visual feedback and user experience
+1. **Fix Auto-reconnect** - Ensure disconnected users reconnect automatically
+2. **Implement Delta Sync API** - Server endpoint for state recovery
+3. **Add Performance Monitoring** - Track FPS and sync latency
+4. **Test with Multiple Users** - Verify 5+ user performance
+5. **Polish UI/UX** - Improve visual feedback and user experience
 
 ## Current State Assessment
 
@@ -55,7 +63,7 @@ The CollabCanvas MVP is in **Phase 3: Collaboration** with core real-time featur
 - ✅ Database persistence
 
 ### Areas Needing Attention
-- 🔄 User list UI implementation
+- 🔄 Auto-reconnect functionality for disconnected users
 - 🔄 Delta sync for state consistency
 - 🔄 Performance optimization
 - 🔄 Error handling improvements
