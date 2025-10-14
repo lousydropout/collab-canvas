@@ -296,6 +296,47 @@ export function useOwnership({
     await Promise.all(myObjects.map(objectId => releaseObject(objectId)))
   }, [ownershipState, releaseObject])
 
+  // Handle newly created objects from realtime broadcasts
+  const handleNewObjectCreated = useCallback(async (object: any, creatorUserId: string, creatorDisplayName?: string) => {
+    // Only process if object has an owner that's not 'all'
+    if (object.owner && object.owner !== 'all') {
+      // Skip if this is our own object (we already have ownership state)
+      if (object.owner === user?.id) {
+        return
+      }
+      
+      // Use provided display name or fetch it
+      let ownerName = creatorDisplayName || 'Unknown User'
+      if (!creatorDisplayName) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', object.owner)
+            .single()
+          
+          ownerName = profile?.display_name || 'Unknown User'
+        } catch (error) {
+          console.warn('Failed to fetch creator display name:', error)
+        }
+      }
+      
+      // Update ownership state
+      setOwnershipState(prev => ({
+        ...prev,
+        [object.id]: {
+          owner_id: object.owner,
+          owner_name: ownerName,
+          claimed_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS).toISOString(),
+          is_claimed_by_me: false,
+        }
+      }))
+      
+      console.log(`🏷️ Added ownership state for new object ${object.id} owned by ${ownerName}`)
+    }
+  }, [user])
+
   // Handle ownership changes from canvas_objects realtime updates
   const handleCanvasObjectUpdate = useCallback((payload: any) => {
     const { new: newRecord, old: oldRecord } = payload
@@ -399,7 +440,8 @@ export function useOwnership({
     getOwnershipStatus,
     getOwnerInfo,
     
-    // Handler for integration
+    // Handlers for integration
     handleCanvasObjectUpdate,
+    handleNewObjectCreated,
   }
 }

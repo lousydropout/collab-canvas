@@ -3,6 +3,7 @@ export interface RealtimeEvents {
   object_created: {
     object: CanvasObject
     user_id: string
+    creatorDisplayName?: string
   }
   object_updated: {
     object: CanvasObject
@@ -24,6 +25,7 @@ export interface RealtimeEvents {
     original_ids: string[]
     new_objects: CanvasObject[]
     user_id: string
+    creatorDisplayName?: string
   }
 
   // Ownership events

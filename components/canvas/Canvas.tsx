@@ -24,6 +24,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const [isHoveringObject, setIsHoveringObject] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   // Initialize ownership system first
   const ownership = useOwnership({
@@ -55,7 +56,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         selectObjects(state.selectedObjects.filter(id => id !== objectId))
       }
     }
-  })
+  }, ownership.handleNewObjectCreated)
 
   // Sync tool state
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   }, [])
 
   // Handle canvas click for rectangle creation
-  const handleCanvasClick = useCallback((e: any) => {
+  const handleCanvasClick = useCallback(async (e: any) => {
     // Only handle clicks on the stage itself (not on shapes)
     const clickedOnEmpty = e.target === e.target.getStage()
     
@@ -112,21 +113,52 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     const pointerPos = stage.getPointerPosition()
     const isShiftClick = e.evt?.shiftKey || false
     
-    if (currentTool === 'rectangle' && !isCreatingRect && pointerPos) {
+    if (currentTool === 'rectangle' && pointerPos) {
       // Convert screen coordinates to stage coordinates
       const stagePos = {
         x: (pointerPos.x - stage.x()) / stage.scaleX(),
         y: (pointerPos.y - stage.y()) / stage.scaleY()
       }
       
-      console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
-      setIsCreatingRect(true)
-      setCreatingRect({
-        startX: stagePos.x,
-        startY: stagePos.y,
-        endX: stagePos.x,
-        endY: stagePos.y,
-      })
+      if (!isCreatingRect) {
+        // Start rectangle creation
+        console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
+        setIsCreatingRect(true)
+        setIsDragging(false) // Reset drag state
+        setCreatingRect({
+          startX: stagePos.x,
+          startY: stagePos.y,
+          endX: stagePos.x,
+          endY: stagePos.y,
+        })
+      } else if (creatingRect && !isDragging) {
+        // Finish rectangle creation (click-to-finish workflow)
+        // Only if we haven't been dragging (to avoid conflict with drag workflow)
+        console.log('🏁 Finishing rectangle creation at stage coords:', stagePos)
+        const width = Math.abs(stagePos.x - creatingRect.startX)
+        const height = Math.abs(stagePos.y - creatingRect.startY)
+        
+        // Create rectangle with minimum size of 50x50 if too small
+        const finalWidth = Math.max(width, 50)
+        const finalHeight = Math.max(height, 50)
+        const x = Math.min(creatingRect.startX, stagePos.x)
+        const y = Math.min(creatingRect.startY, stagePos.y)
+        
+        await createRectangle({
+          type: 'rectangle',
+          x,
+          y,
+          width: finalWidth,
+          height: finalHeight,
+          color: '#3b82f6',
+        })
+        
+        console.log('✅ Rectangle created!')
+        setIsCreatingRect(false)
+        setCreatingRect(null)
+        setIsDragging(false)
+        onToolChange('select') // Switch back to select tool
+      }
     } else if (currentTool === 'select') {
       // Deselect all when clicking empty space
       selectObjects([])
@@ -137,7 +169,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         ownership.releaseAllObjects()
       }
     }
-  }, [currentTool, isCreatingRect, selectObjects, ownership])
+  }, [currentTool, isCreatingRect, creatingRect, isDragging, selectObjects, ownership, createRectangle, onToolChange])
 
   // Handle mouse move during rectangle creation and cursor updates
   const handleMouseMove = useCallback((e: any) => {
@@ -151,6 +183,12 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         const stagePos = {
           x: (pointerPos.x - stage.x()) / stage.scaleX(),
           y: (pointerPos.y - stage.y()) / stage.scaleY()
+        }
+        
+        // Check if we've moved enough to consider this a drag
+        const dragDistance = Math.abs(stagePos.x - creatingRect.startX) + Math.abs(stagePos.y - creatingRect.startY)
+        if (dragDistance > 5) {
+          setIsDragging(true)
         }
         
         setCreatingRect(prev => prev ? {
@@ -169,9 +207,9 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
     }
   }, [isCreatingRect, creatingRect, currentTool])
 
-  // Handle mouse up to finish rectangle creation
+  // Handle mouse up to finish rectangle creation (drag workflow only)
   const handleMouseUp = useCallback(async () => {
-    if (isCreatingRect && creatingRect) {
+    if (isCreatingRect && creatingRect && isDragging) {
       const width = Math.abs(creatingRect.endX - creatingRect.startX)
       const height = Math.abs(creatingRect.endY - creatingRect.startY)
       
@@ -189,14 +227,15 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
           color: '#3b82f6',
         })
         
-        console.log('✅ Rectangle created!')
+        console.log('✅ Rectangle created via drag!')
       }
       
       setIsCreatingRect(false)
       setCreatingRect(null)
+      setIsDragging(false)
       onToolChange('select') // Switch back to select tool
     }
-  }, [isCreatingRect, creatingRect, createRectangle, onToolChange])
+  }, [isCreatingRect, creatingRect, isDragging, createRectangle, onToolChange])
 
   // Handle object selection (with multi-select support)
   const handleObjectSelect = useCallback((objectId: string, event?: any) => {
@@ -268,6 +307,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
         if (isCreatingRect) {
           setIsCreatingRect(false)
           setCreatingRect(null)
+          setIsDragging(false)
           onToolChange('select')
           console.log('🚫 Cancelled rectangle creation')
         } else {

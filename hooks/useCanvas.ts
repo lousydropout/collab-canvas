@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 
-export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void) {
+export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>) {
   const { user } = useAuth()
   const [state, setState] = useState<CanvasState>({
     objects: [],
@@ -19,8 +19,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
   const localOperationsRef = useRef<Set<string>>(new Set())
 
   // Realtime event handlers
-  const handleRealtimeObjectCreated = useCallback((event: { object: CanvasObject; user_id: string }) => {
-    const { object, user_id } = event
+  const handleRealtimeObjectCreated = useCallback((event: { object: CanvasObject; user_id: string; creatorDisplayName?: string }) => {
+    const { object, user_id, creatorDisplayName } = event
     
     // Skip if this was our own operation
     if (user && user_id === user.id) {
@@ -49,7 +49,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         objects: [...prev.objects, object],
       }
     })
-  }, [user])
+    
+    // Notify ownership system about the new object
+    if (onNewObjectCreated) {
+      onNewObjectCreated(object, user_id, creatorDisplayName)
+    }
+  }, [user, onNewObjectCreated])
 
   const handleRealtimeObjectUpdated = useCallback((event: { object: CanvasObject; user_id: string; ownerDisplayName?: string | null }) => {
     const { object, user_id, ownerDisplayName } = event
@@ -115,8 +120,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     }))
   }, [user])
 
-  const handleRealtimeObjectsDuplicated = useCallback((event: { original_ids: string[]; new_objects: CanvasObject[]; user_id: string }) => {
-    const { new_objects, user_id } = event
+  const handleRealtimeObjectsDuplicated = useCallback((event: { original_ids: string[]; new_objects: CanvasObject[]; user_id: string; creatorDisplayName?: string }) => {
+    const { new_objects, user_id, creatorDisplayName } = event
     
     // Skip if this was our own operation
     if (user && user_id === user.id) {
@@ -129,7 +134,14 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       ...prev,
       objects: [...prev.objects, ...new_objects],
     }))
-  }, [user])
+    
+    // Notify ownership system about the new objects  
+    if (onNewObjectCreated) {
+      new_objects.forEach(object => {
+        onNewObjectCreated(object, user_id, creatorDisplayName)
+      })
+    }
+  }, [user, onNewObjectCreated])
 
   // Initialize realtime integration
   const realtime = useRealtime({

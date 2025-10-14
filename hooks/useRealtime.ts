@@ -37,18 +37,19 @@ export function useRealtime({
 
   // Broadcast an object creation
   const broadcastObjectCreated = useCallback(async (object: CanvasObject) => {
-    if (!channelRef.current || !user) return
+    if (!channelRef.current || !user || !profile) return
 
-    console.log('📡 Broadcasting object created:', object.id)
+    console.log('📡 Broadcasting object created:', object.id, 'by', profile.display_name)
     await channelRef.current.send({
       type: 'broadcast',
       event: 'object_created',
       payload: {
         object,
         user_id: user.id,
+        creatorDisplayName: profile.display_name,
       },
     })
-  }, [user])
+  }, [user, profile])
 
   // Broadcast an object update
   const broadcastObjectUpdated = useCallback(async (object: CanvasObject) => {
@@ -97,9 +98,9 @@ export function useRealtime({
 
   // Broadcast object duplication
   const broadcastObjectsDuplicated = useCallback(async (originalIds: string[], newObjects: CanvasObject[]) => {
-    if (!channelRef.current || !user) return
+    if (!channelRef.current || !user || !profile) return
 
-    console.log('📡 Broadcasting objects duplicated:', originalIds.length, 'objects')
+    console.log('📡 Broadcasting objects duplicated:', originalIds.length, 'objects by', profile.display_name)
     await channelRef.current.send({
       type: 'broadcast',
       event: 'objects_duplicated',
@@ -107,9 +108,10 @@ export function useRealtime({
         original_ids: originalIds,
         new_objects: newObjects,
         user_id: user.id,
+        creatorDisplayName: profile.display_name,
       },
     })
-  }, [user])
+  }, [user, profile])
 
   // Broadcast ownership claimed
   const broadcastOwnershipClaimed = useCallback(async (event: { object_id: string; owner_id: string; owner_name: string; claimed_at: string; expires_at: string }) => {
@@ -187,26 +189,14 @@ export function useRealtime({
       },
     })
 
-    // Subscribe to database changes
+    // Subscribe to database changes - ONLY for ownership changes
+    // 
+    // Architecture:
+    // - Broadcast channels: Handle all object CRUD (create, update, delete, duplicate)
+    // - Database subscriptions: Handle only ownership changes (owner field updates)
+    // 
+    // This prevents duplicate processing of the same events
     channel
-      .on(
-        'postgres_changes' as any,
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'canvas_objects',
-          filter: `canvas_id=eq.${canvasId}`,
-        },
-        (payload) => {
-          console.log('📥 Database INSERT received:', payload)
-          if (onObjectCreated && payload.new) {
-            onObjectCreated({
-              object: payload.new as CanvasObject,
-              user_id: payload.new.created_by || 'unknown',
-            })
-          }
-        }
-      )
       .on(
         'postgres_changes' as any,
         {
@@ -218,55 +208,18 @@ export function useRealtime({
         async (payload) => {
           console.log('📥 Database UPDATE received:', payload)
           
-          // Handle ownership changes first
-          if (onOwnershipChanged) {
-            onOwnershipChanged(payload)
-          }
-          
-          if (onObjectUpdated && payload.new) {
-            const newObject = payload.new as CanvasObject
-            let ownerDisplayName = null
+          // Only process if this is an ownership change
+          const { new: newRecord, old: oldRecord } = payload
+          if (newRecord && oldRecord && newRecord.owner !== oldRecord.owner) {
+            console.log('🏷️ Ownership change detected:', `${oldRecord.owner} → ${newRecord.owner}`)
             
-            // If owner changed and is not 'all', fetch the owner's display name
-            if (payload.old && newObject.owner !== payload.old.owner && newObject.owner !== 'all') {
-              try {
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('display_name')
-                  .eq('id', newObject.owner)
-                  .single()
-                
-                ownerDisplayName = profile?.display_name || 'Unknown User'
-                console.log(`📋 Fetched owner display name: ${ownerDisplayName} for object ${newObject.id}`)
-              } catch (error) {
-                console.warn('Failed to fetch owner display name:', error)
-                ownerDisplayName = 'Unknown User'
-              }
+            // Handle ownership changes
+            if (onOwnershipChanged) {
+              onOwnershipChanged(payload)
             }
-            
-            onObjectUpdated({
-              object: newObject,
-              user_id: payload.new.created_by || 'unknown',
-              ownerDisplayName,
-            })
-          }
-        }
-      )
-      .on(
-        'postgres_changes' as any,
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'canvas_objects',
-          filter: `canvas_id=eq.${canvasId}`,
-        },
-        (payload) => {
-          console.log('📥 Database DELETE received:', payload)
-          if (onObjectDeleted && payload.old) {
-            onObjectDeleted({
-              object_id: payload.old.id,
-              user_id: 'unknown', // Can't determine from DELETE event
-            })
+          } else {
+            // This is a regular object update (position, etc.) - ignore since broadcasts handle it
+            console.log('📝 Regular object update - handled by broadcast')
           }
         }
       )
