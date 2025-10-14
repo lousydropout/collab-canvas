@@ -26,6 +26,10 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
   const [isHoveringObject, setIsHoveringObject] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
 
+  // Cursor position tracking refs
+  const cursorThrottleRef = useRef<NodeJS.Timeout | null>(null)
+  const lastCursorUpdateRef = useRef<number>(0)
+
   // Initialize ownership system first
   const ownership = useOwnership({
     canvasId: 'default',
@@ -173,11 +177,47 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
 
   // Handle mouse move during rectangle creation and cursor updates
   const handleMouseMove = useCallback((e: any) => {
+    const stage = e.target.getStage()
+    const pointerPos = stage.getPointerPosition()
+    
+    // Track cursor position for multiplayer cursors (throttled to ~20ms)
+    if (pointerPos) {
+      const now = Date.now()
+      const timeSinceLastUpdate = now - lastCursorUpdateRef.current
+      
+      // Convert screen coordinates to stage coordinates for consistent positioning
+      const stagePos = {
+        x: (pointerPos.x - stage.x()) / stage.scaleX(),
+        y: (pointerPos.y - stage.y()) / stage.scaleY()
+      }
+      
+      // Throttle cursor updates to ~20ms (50 FPS) using broadcast messages
+      if (timeSinceLastUpdate >= 20) {
+        // Clear any pending throttled update
+        if (cursorThrottleRef.current) {
+          clearTimeout(cursorThrottleRef.current)
+          cursorThrottleRef.current = null
+        }
+        
+        // Update cursor position immediately
+        realtime.broadcastCursorMoved(stagePos)
+        lastCursorUpdateRef.current = now
+        console.log('🎯 Cursor position updated:', stagePos)
+      } else {
+        // Schedule a throttled update if none is pending
+        if (!cursorThrottleRef.current) {
+          cursorThrottleRef.current = setTimeout(() => {
+            realtime.broadcastCursorMoved(stagePos)
+            lastCursorUpdateRef.current = Date.now()
+            cursorThrottleRef.current = null
+            console.log('🎯 Cursor position updated (throttled):', stagePos)
+          }, 20 - timeSinceLastUpdate)
+        }
+      }
+    }
+    
     // Handle rectangle creation
     if (isCreatingRect && creatingRect) {
-      const stage = e.target.getStage()
-      const pointerPos = stage.getPointerPosition()
-      
       if (pointerPos) {
         // Convert screen coordinates to stage coordinates
         const stagePos = {
@@ -205,7 +245,7 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
       const isOverObject = target !== target.getStage()
       setIsHoveringObject(isOverObject)
     }
-  }, [isCreatingRect, creatingRect, currentTool])
+  }, [isCreatingRect, creatingRect, currentTool, realtime])
 
   // Handle mouse up to finish rectangle creation (drag workflow only)
   const handleMouseUp = useCallback(async () => {
@@ -324,6 +364,15 @@ export default function Canvas({ className = '', currentTool, onToolChange }: Ca
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, onToolChange])
+
+  // Cleanup cursor throttle timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (cursorThrottleRef.current) {
+        clearTimeout(cursorThrottleRef.current)
+      }
+    }
+  }, [])
 
   // Virtual canvas size (larger than viewport for infinite canvas feel)
   const virtualCanvasSize = {

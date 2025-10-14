@@ -28,6 +28,17 @@ export interface RealtimeEvents {
     creatorDisplayName?: string
   }
 
+  // Cursor events
+  cursor_moved: {
+    user_id: string
+    display_name: string
+    position: {
+      x: number
+      y: number
+    }
+    timestamp: string
+  }
+
   // Ownership events
   ownership_claimed: {
     object_id: string

@@ -143,6 +143,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     }
   }, [user, onNewObjectCreated])
 
+  // Handle cursor movement from other users
+  const handleRealtimeCursorMoved = useCallback((event: any) => {
+    // For now, just log cursor movements - will be used for rendering cursors later
+    console.log('👆 Other user cursor moved:', event.display_name, event.position)
+  }, [])
+
   // Initialize realtime integration
   const realtime = useRealtime({
     canvasId,
@@ -151,6 +157,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     onObjectDeleted: handleRealtimeObjectDeleted,
     onObjectsDeleted: handleRealtimeObjectsDeleted,
     onObjectsDuplicated: handleRealtimeObjectsDuplicated,
+    onCursorMoved: handleRealtimeCursorMoved,
     onOwnershipChanged: ownershipHandler,
   })
 

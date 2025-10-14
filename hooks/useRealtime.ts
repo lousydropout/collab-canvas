@@ -13,6 +13,7 @@ interface UseRealtimeProps {
   onObjectDeleted?: (event: RealtimeEvents['object_deleted']) => void
   onObjectsDeleted?: (event: RealtimeEvents['objects_deleted']) => void
   onObjectsDuplicated?: (event: RealtimeEvents['objects_duplicated']) => void
+  onCursorMoved?: (event: RealtimeEvents['cursor_moved']) => void
   onOwnershipChanged?: (payload: any) => void
 }
 
@@ -23,6 +24,7 @@ export function useRealtime({
   onObjectDeleted,
   onObjectsDeleted,
   onObjectsDuplicated,
+  onCursorMoved,
   onOwnershipChanged,
 }: UseRealtimeProps) {
   const { user, profile } = useAuth()
@@ -149,15 +151,23 @@ export function useRealtime({
     })
   }, [user])
 
-  // Update cursor position in presence
-  const updateCursorPosition = useCallback(async (position: { x: number; y: number }) => {
-    if (!presenceChannelRef.current || !user || !profile?.display_name) return
+  // Track current presence state to avoid overwriting other fields
+  const currentPresenceRef = useRef<PresenceState | null>(null)
 
-    await presenceChannelRef.current.track({
-      user_id: user.id,
-      display_name: profile.display_name,
-      cursor_position: position,
-      last_seen: new Date().toISOString(),
+  // Broadcast cursor position movement
+  const broadcastCursorMoved = useCallback(async (position: { x: number; y: number }) => {
+    if (!channelRef.current || !user || !profile?.display_name) return
+
+    console.log('👆 Broadcasting cursor position:', position)
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'cursor_moved',
+      payload: {
+        user_id: user.id,
+        display_name: profile.display_name,
+        position,
+        timestamp: new Date().toISOString(),
+      },
     })
   }, [user, profile])
 
@@ -165,12 +175,18 @@ export function useRealtime({
   const updateSelectedObjects = useCallback(async (selectedObjects: string[]) => {
     if (!presenceChannelRef.current || !user || !profile?.display_name) return
 
-    await presenceChannelRef.current.track({
+    // Maintain the current presence state and only update selected objects
+    const newPresenceState = {
+      ...currentPresenceRef.current,
       user_id: user.id,
       display_name: profile.display_name,
       selected_objects: selectedObjects,
       last_seen: new Date().toISOString(),
-    })
+    }
+    
+    currentPresenceRef.current = newPresenceState
+    
+    await presenceChannelRef.current.track(newPresenceState)
   }, [user, profile])
 
   // Initialize realtime channels
@@ -257,6 +273,12 @@ export function useRealtime({
           onObjectDeleted(payload.payload as RealtimeEvents['object_deleted'])
         }
       })
+      .on('broadcast', { event: 'cursor_moved' }, (payload) => {
+        console.log('👆 Broadcast cursor_moved received:', payload.payload)
+        if (onCursorMoved) {
+          onCursorMoved(payload.payload as RealtimeEvents['cursor_moved'])
+        }
+      })
 
     channelRef.current = channel
 
@@ -311,11 +333,14 @@ export function useRealtime({
             if (status === 'SUBSCRIBED') {
               // Join presence with initial state (only if profile is loaded)
               if (profile?.display_name) {
-                await presenceChannel.track({
+                const initialPresenceState: PresenceState = {
                   user_id: user.id,
                   display_name: profile.display_name,
                   last_seen: new Date().toISOString(),
-                })
+                }
+                
+                currentPresenceRef.current = initialPresenceState
+                await presenceChannel.track(initialPresenceState)
               }
             }
           }),
@@ -354,11 +379,14 @@ export function useRealtime({
   useEffect(() => {
     if (presenceChannelRef.current && user && profile?.display_name) {
       console.log('👤 Updating presence with profile:', profile.display_name)
-      presenceChannelRef.current.track({
+      const presenceState: PresenceState = {
         user_id: user.id,
         display_name: profile.display_name,
         last_seen: new Date().toISOString(),
-      })
+      }
+      
+      currentPresenceRef.current = presenceState
+      presenceChannelRef.current.track(presenceState)
     }
   }, [user, profile?.display_name])
 
@@ -372,7 +400,7 @@ export function useRealtime({
     broadcastOwnershipClaimed,
     broadcastOwnershipReleased,
     broadcastOwnershipRejected,
-    updateCursorPosition,
+    broadcastCursorMoved,
     updateSelectedObjects,
   }
 }
