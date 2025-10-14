@@ -165,7 +165,7 @@ collabcanvas/
 
 **Goal:** Prevent editing conflicts.
 
-* [x] Implement claim/release APIs
+* [x] Implement claim/release logic (direct database operations)
 * [x] Add ownership claim logic  
 * [x] Add ownership visuals (borders)
 * [x] Server-validate ownership
@@ -173,7 +173,7 @@ collabcanvas/
 * [x] Handle rejections gracefully
 * [x] Simplify to use canvas_objects.owner field instead of separate table
 * [x] Fix real-time synchronization of ownership changes
-* [x] Add automatic ownership release on window blur/close
+* [x] Add automatic ownership release on window close (blur removed per UX requirements)
 * [x] Update object creation to automatically assign creator as owner
 
 ---
