@@ -355,15 +355,26 @@ export function useRealtime({
         },
         async (payload) => {
           console.log('📥 Database UPDATE received:', payload)
+          console.log('🔍 Payload details:', {
+            new: payload.new,
+            old: payload.old,
+            eventType: payload.eventType,
+            schema: payload.schema,
+            table: payload.table
+          })
           
           // Only process if this is an ownership change
           const { new: newRecord, old: oldRecord } = payload
           if (newRecord && oldRecord && newRecord.owner !== oldRecord.owner) {
             console.log('🏷️ Ownership change detected:', `${oldRecord.owner} → ${newRecord.owner}`)
+            console.log('🏷️ Object ID:', newRecord.id)
             
             // Handle ownership changes
             if (onOwnershipChanged) {
+              console.log('📡 Calling onOwnershipChanged handler')
               onOwnershipChanged(payload)
+            } else {
+              console.warn('⚠️ No onOwnershipChanged handler provided')
             }
           } else {
             // This is a regular object update (position, etc.) - ignore since broadcasts handle it

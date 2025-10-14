@@ -122,6 +122,7 @@ export function useOwnership({
 
     // Check if already claimed by me
     if (getOwnershipStatus(objectId) === 'claimed_by_me') {
+      console.log(`🏷️ Object ${objectId} already claimed by me`)
       return true
     }
 
@@ -131,6 +132,21 @@ export function useOwnership({
 
     try {
       console.log(`🏷️ Attempting to claim object: ${objectId}`)
+      console.log(`🔍 Current user: ${user.id}, profile: ${profile.display_name}`)
+
+      // First, check the current state of the object
+      const { data: currentObj, error: fetchError } = await supabase
+        .from('canvas_objects')
+        .select('owner, created_by')
+        .eq('id', objectId)
+        .single()
+
+      if (fetchError) {
+        console.error('❌ Error fetching object for claim:', fetchError)
+        return false
+      }
+
+      console.log(`🔍 Object ${objectId} current state: owner=${currentObj.owner}, created_by=${currentObj.created_by}`)
 
       // Atomically claim object if available (owner = 'all')
       const { data, error } = await supabase
@@ -230,6 +246,7 @@ export function useOwnership({
 
     try {
       console.log(`🏷️ Releasing object: ${objectId}`)
+      console.log(`🔍 Current user: ${user.id}`)
 
       // First, check what the current owner is
       const { data: currentObject, error: fetchError } = await supabase
@@ -252,6 +269,7 @@ export function useOwnership({
       }
 
       // Set owner back to 'all' - we know we own it from the check above
+      console.log(`🔄 Updating database: setting owner to 'all' for object ${objectId}`)
       const { data, error } = await supabase
         .from('canvas_objects')
         .update({ 
@@ -271,6 +289,7 @@ export function useOwnership({
       }
 
       console.log(`✅ Database update successful for object ${objectId}:`, data[0])
+      console.log(`📡 Ownership change should now be broadcasted to other users`)
 
       // Clear local state
       setOwnershipState(prev => ({
