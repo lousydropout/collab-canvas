@@ -1,0 +1,61 @@
+# CollabCanvas Project Rules
+
+## Core Development Principles
+
+### Performance First
+- Always maintain 60 FPS during interactions
+- Use react-konva for React integration with Konva.js
+- Throttle updates to 50ms for cursors and positions
+- Separate broadcast operations from database persistence
+
+### Real-time Collaboration
+- Use dual channel architecture: broadcast for CRUD, database for ownership
+- Implement optimistic UI with server validation
+- Handle connection recovery gracefully
+- Server state is always source of truth
+
+### Code Organization
+- Keep canvas components in `/components/canvas/`
+- Use custom hooks in `/hooks/` for state management
+- Type definitions in `/types/` directory
+- Supabase utilities in `/lib/supabase/`
+
+## Technical Patterns
+
+### Konva.js Usage
+- Use react-konva for React component integration
+- Clean up event listeners on component unmount
+- Use Layer caching for performance optimization
+- Handle Stage events for pan/zoom
+
+### Supabase Integration
+- Use Row Level Security (RLS) for data access control
+- Implement proper error handling for real-time connections
+- Clean up channels on component unmount
+- Use service role key only for server-side operations
+
+### State Management
+- Local state for immediate UI updates
+- Broadcast state changes for real-time sync
+- Database persistence with debouncing
+- Handle ownership conflicts with claim/release pattern
+
+## Development Workflow
+
+### Testing Real-time Features
+- Always test with multiple browser windows/tabs
+- Use different user accounts for collaboration testing
+- Monitor console for real-time event logs
+- Test connection recovery scenarios
+
+### Performance Testing
+- Test with 100+ objects for performance validation
+- Monitor FPS during drag operations
+- Test with throttled network conditions
+- Verify sync latency targets (<100ms objects, <50ms cursors)
+
+### Code Quality
+- Use TypeScript strict mode
+- Implement proper error boundaries
+- Add loading states for async operations
+- Include proper cleanup in useEffect hooks

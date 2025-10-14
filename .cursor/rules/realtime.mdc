@@ -1,0 +1,31 @@
+# Real-time Collaboration Rules
+
+## Supabase Realtime Architecture
+- Use dual channel approach: broadcast for CRUD, database for ownership
+- Implement proper channel cleanup on component unmount
+- Handle connection status and recovery gracefully
+- Use presence channels for user tracking
+
+## Ownership System
+- Implement claim/release pattern for conflict prevention
+- Show visual feedback: yellow (pending) → user color (success) → owner color (locked)
+- Server validates all ownership claims
+- Release ownership on mouse up or window close
+
+## Broadcast Events
+- Object CRUD: create, update, delete, duplicate
+- Cursor movement: throttled to 50ms
+- Ownership: claim, release, reject
+- Presence: join, leave, sync
+
+## Error Handling
+- Implement connection recovery with exponential backoff
+- Handle missed events with delta sync
+- Provide visual feedback for connection status
+- Graceful degradation when real-time fails
+
+## Performance Considerations
+- Throttle cursor updates to 20 FPS (50ms)
+- Separate real-time updates from database persistence
+- Use broadcast channels for immediate updates
+- Implement delta sync for state recovery

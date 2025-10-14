@@ -1,0 +1,31 @@
+# Canvas Component Standards
+
+## react-konva Integration
+- Use react-konva components for React integration
+- Initialize Konva Stage in useEffect with proper cleanup
+- Handle Stage events for pan/zoom functionality
+- Use Layer caching for static objects
+
+## Component Structure
+- Separate Canvas (container) from CanvasStage (Konva wrapper)
+- Individual object components (Rectangle, etc.) for rendering
+- Transformer component for resize/rotate handles
+- Cursor component for multiplayer cursors
+
+## Event Handling
+- Prevent event bubbling between canvas and objects
+- Use Konva's built-in drag events for smooth interactions
+- Implement proper mouse event handling for tool selection
+- Clean up all event listeners on unmount
+
+## Performance Optimization
+- Throttle cursor updates to 50ms (20 FPS)
+- Separate broadcast operations from database writes
+- Use Layer caching for objects that don't change frequently
+- Implement viewport culling if needed for large canvases
+
+## Real-time Synchronization
+- Broadcast object changes immediately for real-time updates
+- Persist to database with debouncing (100ms)
+- Handle ownership changes via database subscriptions
+- Implement optimistic UI with rollback capability
