@@ -66,16 +66,17 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     console.log(`🏷️ Ownership rejected: ${event.object_id} (claimed by ${event.current_owner_name})`)
   }, [])
 
+  // Create a ref for the ownership expired callback that will be set later
+  const onOwnershipExpiredRef = useRef<((event: any) => void) | null>(null)
+
   // Initialize ownership system first
   const ownership = useOwnership({
     canvasId: 'default',
     onOwnershipClaimed,
     onOwnershipReleased,
     onOwnershipRejected,
+    onOwnershipExpired: (event: any) => onOwnershipExpiredRef.current?.(event),
   })
-
-
-  // Handle batched cursor updates from other users
   const handleCursorUpdates = useCallback((updates: Array<{userId: string, displayName: string, position: {x: number, y: number}, timestamp: string}>) => {
     // Cursor updates processed silently
     
@@ -116,6 +117,23 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
   }, [ownership, user?.id])
 
   const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+
+  // Handle ownership expiry by clearing selection
+  const onOwnershipExpired = useCallback((event: any) => {
+    console.log(`⏰ Ownership expired for object: ${event.object_id}`)
+    // Clear selection for the expired object
+    const currentSelection = state.selectedObjects
+    const newSelection = currentSelection.filter((id: string) => id !== event.object_id)
+    if (newSelection.length !== currentSelection.length) {
+      selectObjects(newSelection)
+      console.log(`🎯 Cleared selection for expired object: ${event.object_id}`)
+    }
+  }, [state.selectedObjects, selectObjects])
+
+  // Set the ref so the ownership hook can call it
+  useEffect(() => {
+    onOwnershipExpiredRef.current = onOwnershipExpired
+  }, [onOwnershipExpired])
 
   // Sync tool and color state
   useEffect(() => {

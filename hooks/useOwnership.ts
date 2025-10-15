@@ -10,6 +10,7 @@ interface UseOwnershipProps {
   onOwnershipClaimed?: (event: OwnershipEvents['ownership_claimed']) => void
   onOwnershipReleased?: (event: OwnershipEvents['ownership_released']) => void
   onOwnershipRejected?: (event: OwnershipEvents['ownership_rejected']) => void
+  onOwnershipExpired?: (event: OwnershipEvents['ownership_expired']) => void
 }
 
 export function useOwnership({
@@ -17,6 +18,7 @@ export function useOwnership({
   onOwnershipClaimed,
   onOwnershipReleased,
   onOwnershipRejected,
+  onOwnershipExpired,
 }: UseOwnershipProps) {
   const { user, profile } = useAuth()
   const [ownershipState, setOwnershipState] = useState<OwnershipState>({})
@@ -216,7 +218,7 @@ export function useOwnership({
       // Set up auto-release timer
       const timeoutId = setTimeout(() => {
         console.log(`⏰ Auto-releasing expired claim: ${objectId}`)
-        releaseObject(objectId)
+        releaseObject(objectId, true) // true indicates this is an expiry
       }, OWNERSHIP_CONFIG.CLAIM_DURATION_MS)
       
       cleanupTimersRef.current.set(objectId, timeoutId)
@@ -242,7 +244,7 @@ export function useOwnership({
   }, [user, profile, getOwnershipStatus, onOwnershipClaimed, onOwnershipRejected])
 
   // Release an object (simple owner field approach)
-  const releaseObject = useCallback(async (objectId: string): Promise<boolean> => {
+  const releaseObject = useCallback(async (objectId: string, isExpired: boolean = false): Promise<boolean> => {
     if (!user) {
       console.warn('Cannot release object: user not authenticated')
       return false
@@ -314,12 +316,20 @@ export function useOwnership({
         cleanupTimersRef.current.delete(objectId)
       }
 
-      // Broadcast the release event
-      onOwnershipReleased?.({
-        object_id: objectId,
-        former_owner_id: user.id,
-        released_at: new Date().toISOString(),
-      })
+      // Broadcast the appropriate event based on release type
+      if (isExpired) {
+        onOwnershipExpired?.({
+          object_id: objectId,
+          former_owner_id: user.id,
+          expired_at: new Date().toISOString(),
+        })
+      } else {
+        onOwnershipReleased?.({
+          object_id: objectId,
+          former_owner_id: user.id,
+          released_at: new Date().toISOString(),
+        })
+      }
 
       console.log(`✅ Successfully released object: ${objectId}`)
       return true
@@ -392,7 +402,7 @@ export function useOwnership({
       if (isMyObject) {
         const timeoutId = setTimeout(() => {
           console.log(`⏰ Auto-releasing expired claim: ${object.id}`)
-          releaseObject(object.id)
+          releaseObject(object.id, true) // true indicates this is an expiry
         }, OWNERSHIP_CONFIG.CLAIM_DURATION_MS)
         
         cleanupTimersRef.current.set(object.id, timeoutId)
