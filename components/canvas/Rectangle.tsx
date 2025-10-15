@@ -118,7 +118,7 @@ export default function Rectangle({
   //   // Real-time updates removed for simplicity
   // }, [])
 
-  const handleDragStart = async (e: any) => {
+  const handleDragStart = (e: any) => {
     // Aggressively stop all event propagation
     e.cancelBubble = true
     if (e.stopPropagation) e.stopPropagation()
@@ -131,24 +131,8 @@ export default function Rectangle({
       e.evt.cancelBubble = true
     }
     
-    // Check ownership before allowing drag
-    if (!canInteract) {
-      console.log(`🚫 Cannot drag object ${object.id}: owned by ${ownerInfo?.owner_name}`)
-      e.target.stopDrag()
-      return
-    }
-
-    // Attempt to claim object if not already claimed by me
-    if (ownershipStatus !== 'claimed_by_me' && onClaimAttempt) {
-      console.log(`🏷️ Attempting to claim object ${object.id} before dragging`)
-      const claimSuccess = await onClaimAttempt(object.id)
-      
-      if (!claimSuccess) {
-        console.log(`🚫 Failed to claim object ${object.id}, preventing drag`)
-        e.target.stopDrag()
-        return
-      }
-    }
+    // Since draggable is only true when claimed_by_me, we can assume ownership is valid
+    console.log(`🏷️ Starting drag for object ${object.id} (already claimed by me)`)
     
     // Ensure rectangle is selected when starting to drag
     if (!isSelected) {
@@ -193,7 +177,7 @@ export default function Rectangle({
         height={object.height}
         fill={object.color}
         rotation={object.rotation}
-        draggable={canInteract && !isPendingClaim}
+        draggable={canInteract && !isPendingClaim && ownershipStatus === 'claimed_by_me'}
         onClick={handleClick}
         onTap={handleClick}
         onDragStart={handleDragStart}
