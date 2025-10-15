@@ -9,6 +9,7 @@ interface CanvasStageProps {
   height: number
   children?: React.ReactNode
   onScaleChange?: (scale: number) => void
+  onPositionChange?: (position: { x: number; y: number }) => void
   onStageClick?: (e: any) => void
   onMouseMove?: (e: any) => void
   onMouseUp?: (e: any) => void
@@ -21,6 +22,7 @@ export default function CanvasStage({
   height,
   children,
   onScaleChange,
+  onPositionChange,
   onStageClick,
   onMouseMove,
   onMouseUp,
@@ -31,6 +33,15 @@ export default function CanvasStage({
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
   const [stageScale, setStageScale] = useState(1)
   const [isDragging, setIsDragging] = useState(false)
+
+  // Reset viewport to standard view (100% zoom, centered)
+  const resetViewport = useCallback(() => {
+    setStageScale(1)
+    setStagePos({ x: 0, y: 0 })
+    onScaleChange?.(1)
+    onPositionChange?.({ x: 0, y: 0 })
+    console.log('🔄 Reset viewport to standard view')
+  }, [onScaleChange, onPositionChange])
 
   // Handle wheel zoom
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -68,6 +79,7 @@ export default function CanvasStage({
     }
 
     setStagePos(newPos)
+    onPositionChange?.(newPos)
   }, [])
 
   // Handle stage drag (pan) - only when dragging the stage itself, not objects
@@ -91,6 +103,7 @@ export default function CanvasStage({
         y: e.target.y(),
       }
       setStagePos(newPos)
+      onPositionChange?.(newPos)
       console.log(`📍 Pan position: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`)
     }
   }, [])
@@ -111,11 +124,20 @@ export default function CanvasStage({
   }, [])
 
   return (
-    <div className="border border-gray-300 bg-white rounded-lg overflow-hidden relative">
-      {/* Zoom Level Indicator */}
+    <div className="border border-gray-300 bg-gray-50 overflow-hidden relative">
+      {/* Visible Canvas Dimensions Indicator */}
       <div className="absolute top-4 left-4 z-10 bg-black/70 text-white px-3 py-1 rounded text-sm font-mono">
-        {(stageScale * 100).toFixed(0)}%
+        {Math.round(width / stageScale)}×{Math.round(height / stageScale)}px
       </div>
+      
+      {/* Reset Viewport Button */}
+      <button
+        onClick={resetViewport}
+        className="absolute top-12 left-4 z-10 bg-blue-600/70 hover:bg-blue-600/80 text-white px-3 py-1 rounded text-xs font-mono transition-colors cursor-pointer"
+        title="Reset to standard viewport (100% zoom, centered)"
+      >
+        Reset View
+      </button>
       
       <Stage
         ref={stageRef}

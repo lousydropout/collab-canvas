@@ -6,6 +6,7 @@ import Grid from './Grid'
 import Rectangle from './Rectangle'
 import KonvaTransformer from './Transformer'
 import Cursor from './Cursor'
+import CursorPositionDisplay from './CursorPositionDisplay'
 import { UserListModal } from './UserListModal'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useOwnership } from '@/hooks/useOwnership'
@@ -24,12 +25,14 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [currentScale, setCurrentScale] = useState(1)
+  const [currentStagePosition, setCurrentStagePosition] = useState({ x: 0, y: 0 })
   const lastLoggedDimensionsRef = useRef({ width: 0, height: 0 })
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const [isHoveringObject, setIsHoveringObject] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isUserListModalOpen, setIsUserListModalOpen] = useState(false)
+  const [currentCursorPosition, setCurrentCursorPosition] = useState<{ x: number; y: number } | null>(null)
 
   // Other users' cursor positions
   const [otherCursors, setOtherCursors] = useState<Map<string, {
@@ -40,7 +43,10 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     color: string
   }>>(new Map())
 
-  // Generate consistent color for each user based on their ID
+  // Handle stage position changes
+  const handleStagePositionChange = useCallback((position: { x: number; y: number }) => {
+    setCurrentStagePosition(position)
+  }, [])
   const getUserColor = useCallback((userId: string) => {
     const colors = [
       '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
@@ -281,6 +287,9 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         y: (pointerPos.y - stage.y()) / stage.scaleY()
       }
       
+      // Update current cursor position for display
+      setCurrentCursorPosition(stagePos)
+      
       // Broadcast cursor position immediately - batching will handle the frequency
       realtime.broadcastCursorMoved(stagePos)
       // Cursor position updates processed silently
@@ -516,10 +525,14 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         width={dimensions.width} 
         height={dimensions.height}
         onScaleChange={setCurrentScale}
+        onPositionChange={handleStagePositionChange}
         onStageClick={handleCanvasClick}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => setIsHoveringObject(false)}
+        onMouseLeave={() => {
+          setIsHoveringObject(false)
+          setCurrentCursorPosition(null)
+        }}
         cursor={
           currentTool === 'rectangle' 
             ? 'crosshair' 
@@ -529,11 +542,14 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         }
       >
         <Grid 
-          width={virtualCanvasSize.width} 
-          height={virtualCanvasSize.height} 
+          width={dimensions.width} 
+          height={dimensions.height} 
           gridSize={20}
-          stroke="#f3f4f6"
+          stroke="#d1d5db"
           strokeWidth={0.5}
+          stageX={currentStagePosition.x}
+          stageY={currentStagePosition.y}
+          stageScale={currentScale}
         />
         
         {/* Render existing rectangles */}
@@ -604,6 +620,9 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         onClose={() => setIsUserListModalOpen(false)}
         onlineUsers={realtime.onlineUsers}
       />
+      
+      {/* Cursor Position Display */}
+      <CursorPositionDisplay position={currentCursorPosition} />
     </div>
   )
 }
