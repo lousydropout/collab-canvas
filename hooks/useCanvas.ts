@@ -7,7 +7,7 @@ import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 import { loadColorFromLocalStorage, saveColorToLocalStorage } from '@/lib/colorUtils'
 
-export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorMoved?: (event: any) => void) {
+export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorUpdates?: (updates: Array<{userId: string, displayName: string, position: {x: number, y: number}, timestamp: string}>) => void) {
   const { user, profile } = useAuth()
   const [state, setState] = useState<CanvasState>({
     objects: [],
@@ -19,6 +19,103 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
   // Track operations initiated by this client to avoid infinite loops
   const localOperationsRef = useRef<Set<string>>(new Set())
+  
+  // Prevent duplicate object loading
+  const isLoadingObjectsRef = useRef(false)
+  
+  // Store callback functions in refs to prevent re-renders
+  const ownershipHandlerRef = useRef(ownershipHandler)
+  const onNewObjectCreatedRef = useRef(onNewObjectCreated)
+  const onCursorUpdatesRef = useRef(onCursorUpdates)
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    ownershipHandlerRef.current = ownershipHandler
+  }, [ownershipHandler])
+  
+  useEffect(() => {
+    onNewObjectCreatedRef.current = onNewObjectCreated
+  }, [onNewObjectCreated])
+  
+  useEffect(() => {
+    onCursorUpdatesRef.current = onCursorUpdates
+  }, [onCursorUpdates])
+
+  // Queue for batched updates
+  const updateQueue = useRef<{
+    created: CanvasObject[]
+    updated: CanvasObject[]
+    deleted: string[]
+    duplicated: CanvasObject[]
+    cursorUpdates: Map<string, {
+      userId: string
+      displayName: string
+      position: { x: number; y: number }
+      timestamp: string
+    }>
+  }>({
+    created: [],
+    updated: [],
+    deleted: [],
+    duplicated: [],
+    cursorUpdates: new Map()
+  })
+
+  // Flush all queued updates in a single setState call
+  const flushUpdates = useCallback(() => {
+    const { created, updated, deleted, duplicated, cursorUpdates } = updateQueue.current
+    
+    if (created.length > 0 || updated.length > 0 || deleted.length > 0 || duplicated.length > 0 || cursorUpdates.size > 0) {
+      // Only log when there are significant updates to avoid console spam at 60fps
+      const totalUpdates = created.length + updated.length + deleted.length + duplicated.length
+      if (totalUpdates > 0) {
+        console.log(`🔄 Flushing ${totalUpdates} batched updates`)
+      }
+      
+      setState(prev => {
+        let newObjects = [...prev.objects]
+        
+        // Add created objects
+        created.forEach(obj => {
+          if (!newObjects.some(existing => existing.id === obj.id)) {
+            newObjects.push(obj)
+          }
+        })
+        
+        // Add duplicated objects
+        duplicated.forEach(obj => {
+          if (!newObjects.some(existing => existing.id === obj.id)) {
+            newObjects.push(obj)
+          }
+        })
+        
+        // Update existing objects
+        updated.forEach(obj => {
+          newObjects = newObjects.map(existing => 
+            existing.id === obj.id ? obj : existing
+          )
+        })
+        
+        // Remove deleted objects
+        newObjects = newObjects.filter(obj => !deleted.includes(obj.id))
+        
+        return {
+          ...prev,
+          objects: newObjects,
+          selectedObjects: prev.selectedObjects.filter(id => !deleted.includes(id))
+        }
+      })
+      
+      // Process cursor updates
+      if (cursorUpdates.size > 0 && onCursorUpdatesRef.current) {
+        // Cursor updates processed silently
+        onCursorUpdatesRef.current(Array.from(cursorUpdates.values()))
+      }
+      
+      // Clear the queue
+      updateQueue.current = { created: [], updated: [], deleted: [], duplicated: [], cursorUpdates: new Map() }
+    }
+  }, [])
 
   // Realtime event handlers
   const handleRealtimeObjectCreated = useCallback((event: { object: CanvasObject; user_id: string; creatorDisplayName?: string }) => {
@@ -37,26 +134,14 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received object created:', object.id, 'by user:', user_id)
-    setState(prev => {
-      // Check if object already exists to avoid duplicates
-      const exists = prev.objects.some(obj => obj.id === object.id)
-      if (exists) {
-        console.log('⚠️ Object already exists, skipping:', object.id)
-        return prev
-      }
-      
-      return {
-        ...prev,
-        objects: [...prev.objects, object],
-      }
-    })
+    console.log('📥 Queuing object created:', object.id, 'by user:', user_id)
+    updateQueue.current.created.push(object)
     
     // Notify ownership system about the new object
-    if (onNewObjectCreated) {
-      onNewObjectCreated(object, user_id, creatorDisplayName)
+    if (onNewObjectCreatedRef.current) {
+      onNewObjectCreatedRef.current(object, user_id, creatorDisplayName)
     }
-  }, [user, onNewObjectCreated])
+  }, [user])
 
   const handleRealtimeObjectUpdated = useCallback((event: { object: CanvasObject; user_id: string; ownerDisplayName?: string | null }) => {
     const { object, user_id, ownerDisplayName } = event
@@ -74,11 +159,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received object updated:', object.id, 'by user:', user_id, ownerDisplayName ? `(owner: ${ownerDisplayName})` : '')
-    setState(prev => ({
-      ...prev,
-      objects: prev.objects.map(obj => obj.id === object.id ? object : obj),
-    }))
+    console.log('📥 Queuing object updated:', object.id, 'by user:', user_id, ownerDisplayName ? `(owner: ${ownerDisplayName})` : '')
+    updateQueue.current.updated.push(object)
   }, [user])
 
   const handleRealtimeObjectDeleted = useCallback((event: { object_id: string; user_id: string }) => {
@@ -97,12 +179,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received object deleted:', object_id, 'by user:', user_id)
-    setState(prev => ({
-      ...prev,
-      objects: prev.objects.filter(obj => obj.id !== object_id),
-      selectedObjects: prev.selectedObjects.filter(id => id !== object_id),
-    }))
+    console.log('📥 Queuing object deleted:', object_id, 'by user:', user_id)
+    updateQueue.current.deleted.push(object_id)
   }, [user])
 
   const handleRealtimeObjectsDeleted = useCallback((event: { object_ids: string[]; user_id: string }) => {
@@ -114,12 +192,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received batch delete:', object_ids.length, 'objects by user:', user_id)
-    setState(prev => ({
-      ...prev,
-      objects: prev.objects.filter(obj => !object_ids.includes(obj.id)),
-      selectedObjects: prev.selectedObjects.filter(id => !object_ids.includes(id)),
-    }))
+    console.log('📥 Queuing batch delete:', object_ids.length, 'objects by user:', user_id)
+    updateQueue.current.deleted.push(...object_ids)
   }, [user])
 
   const handleRealtimeObjectsDuplicated = useCallback((event: { original_ids: string[]; new_objects: CanvasObject[]; user_id: string; creatorDisplayName?: string }) => {
@@ -131,27 +205,33 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    console.log('📥 Received objects duplicated:', new_objects.length, 'objects by user:', user_id)
-    setState(prev => ({
-      ...prev,
-      objects: [...prev.objects, ...new_objects],
-    }))
+    console.log('📥 Queuing objects duplicated:', new_objects.length, 'objects by user:', user_id)
+    updateQueue.current.duplicated.push(...new_objects)
     
     // Notify ownership system about the new objects  
-    if (onNewObjectCreated) {
+    if (onNewObjectCreatedRef.current) {
       new_objects.forEach(object => {
-        onNewObjectCreated(object, user_id, creatorDisplayName)
+        onNewObjectCreatedRef.current!(object, user_id, creatorDisplayName)
       })
     }
-  }, [user, onNewObjectCreated])
+  }, [user])
 
   // Handle cursor movement from other users
   const handleRealtimeCursorMoved = useCallback((event: any) => {
-    console.log('👆 Other user cursor moved:', event.display_name, event.position)
-    if (onCursorMoved) {
-      onCursorMoved(event)
+    // Don't queue our own cursor updates
+    if (user && event.user_id === user.id) {
+      return
     }
-  }, [onCursorMoved])
+    
+    // Cursor update queued silently
+    // Use Map to store only the latest position per user (prevents queue buildup)
+    updateQueue.current.cursorUpdates.set(event.user_id, {
+      userId: event.user_id,
+      displayName: event.display_name,
+      position: event.position,
+      timestamp: event.timestamp
+    })
+  }, [user])
 
   // Initialize realtime integration
   const realtime = useRealtime({
@@ -162,8 +242,22 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     onObjectsDeleted: handleRealtimeObjectsDeleted,
     onObjectsDuplicated: handleRealtimeObjectsDuplicated,
     onCursorMoved: handleRealtimeCursorMoved,
-    onOwnershipChanged: ownershipHandler,
+    onOwnershipChanged: ownershipHandlerRef.current,
   })
+
+  // Batch updates using setInterval - flushes every 16ms (60fps) for smooth cursor movement
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { created, updated, deleted, duplicated, cursorUpdates } = updateQueue.current
+      const totalUpdates = created.length + updated.length + deleted.length + duplicated.length + cursorUpdates.size
+      
+      if (totalUpdates > 0) {
+        flushUpdates()
+      }
+    }, 16) // 60fps for smooth cursor movement
+    
+    return () => clearInterval(interval)
+  }, [flushUpdates])
 
   // Load objects from Supabase
   const loadObjects = useCallback(async () => {
@@ -171,6 +265,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       console.log('⏳ User not authenticated yet, skipping object load')
       return
     }
+    
+    if (isLoadingObjectsRef.current) {
+      return // Already loading, skip
+    }
+    
+    isLoadingObjectsRef.current = true
 
     try {
       console.log('📥 Loading canvas objects...')
@@ -189,6 +289,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       setState(prev => ({ ...prev, objects: data || [] }))
     } catch (error) {
       console.error('❌ Failed to load objects:', error)
+    } finally {
+      isLoadingObjectsRef.current = false
     }
   }, [canvasId, user])
 
@@ -230,7 +332,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Track this as a local operation to prevent loop when we receive our own DB change
       localOperationsRef.current.add(data.id)
       
-      // Add to local state
+      // Add to local state immediately (optimistic update)
       setState(prev => ({
         ...prev,
         objects: [...prev.objects, data],
@@ -276,7 +378,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Track this as a local operation to prevent loop when we receive our own DB change
       localOperationsRef.current.add(`update-${id}`)
       
-      // Update local state
+      // Update local state immediately (optimistic update)
       setState(prev => ({
         ...prev,
         objects: prev.objects.map(obj => obj.id === id ? data : obj),
@@ -314,7 +416,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
       console.log('✅ Objects deleted')
       
-      // Update local state
+      // Track these as local operations to prevent loop when we receive our own DB change
+      objectIds.forEach(id => {
+        localOperationsRef.current.add(`delete-${id}`)
+      })
+      
+      // Update local state immediately (optimistic update)
       setState(prev => ({
         ...prev,
         objects: prev.objects.filter(obj => !objectIds.includes(obj.id)),
@@ -366,7 +473,12 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
       console.log('✅ Objects duplicated:', data)
       
-      // Update local state and select duplicated objects
+      // Track these as local operations to prevent loop when we receive our own DB change
+      data.forEach(obj => {
+        localOperationsRef.current.add(obj.id)
+      })
+      
+      // Update local state immediately (optimistic update)
       setState(prev => ({
         ...prev,
         objects: [...prev.objects, ...data],
@@ -390,12 +502,17 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
   // Set tool
   const setTool = useCallback((tool: CanvasState['tool']) => {
-    console.log('🔧 Tool changed to:', tool)
-    setState(prev => ({ 
-      ...prev, 
-      tool,
-      selectedObjects: tool !== 'select' ? [] : prev.selectedObjects
-    }))
+    setState(prev => {
+      // Only log if tool actually changed
+      if (prev.tool !== tool) {
+        console.log('🔧 Tool changed to:', tool)
+      }
+      return { 
+        ...prev, 
+        tool,
+        selectedObjects: tool !== 'select' ? [] : prev.selectedObjects
+      }
+    })
   }, [])
 
   // Set color

@@ -41,6 +41,44 @@ export function useRealtime({
   const presenceChannelRef = useRef<RealtimeChannel | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isReconnectingRef = useRef(false)
+  
+  // Store callback functions in refs to prevent re-renders
+  const onObjectCreatedRef = useRef(onObjectCreated)
+  const onObjectUpdatedRef = useRef(onObjectUpdated)
+  const onObjectDeletedRef = useRef(onObjectDeleted)
+  const onObjectsDeletedRef = useRef(onObjectsDeleted)
+  const onObjectsDuplicatedRef = useRef(onObjectsDuplicated)
+  const onCursorMovedRef = useRef(onCursorMoved)
+  const onOwnershipChangedRef = useRef(onOwnershipChanged)
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onObjectCreatedRef.current = onObjectCreated
+  }, [onObjectCreated])
+  
+  useEffect(() => {
+    onObjectUpdatedRef.current = onObjectUpdated
+  }, [onObjectUpdated])
+  
+  useEffect(() => {
+    onObjectDeletedRef.current = onObjectDeleted
+  }, [onObjectDeleted])
+  
+  useEffect(() => {
+    onObjectsDeletedRef.current = onObjectsDeleted
+  }, [onObjectsDeleted])
+  
+  useEffect(() => {
+    onObjectsDuplicatedRef.current = onObjectsDuplicated
+  }, [onObjectsDuplicated])
+  
+  useEffect(() => {
+    onCursorMovedRef.current = onCursorMoved
+  }, [onCursorMoved])
+  
+  useEffect(() => {
+    onOwnershipChangedRef.current = onOwnershipChanged
+  }, [onOwnershipChanged])
 
   // Validate session before operations
   const validateSession = useCallback(async () => {
@@ -213,21 +251,12 @@ export function useRealtime({
   // Track current presence state to avoid overwriting other fields
   const currentPresenceRef = useRef<PresenceState | null>(null)
 
-  // Broadcast cursor position movement
+  // Broadcast cursor position movement (no session validation - cursors are not critical)
   const broadcastCursorMoved = useCallback(async (position: { x: number; y: number }) => {
     if (!channelRef.current || !user || !profile?.display_name) return
 
-    // Validate session before broadcasting
-    const isValidSession = await validateSession()
-    if (!isValidSession) {
-      console.warn('⚠️ Invalid session, skipping cursor broadcast')
-      return
-    }
-
-    if (isDev) {
-      console.log('📡 Broadcasting cursor position:', position)
-    }
     try {
+      // Cursor position broadcasted silently
       await channelRef.current.send({
         type: 'broadcast',
         event: 'cursor_moved',
@@ -240,13 +269,9 @@ export function useRealtime({
       })
     } catch (error) {
       console.warn('⚠️ Failed to broadcast cursor position:', error)
-      // If broadcast fails due to auth, trigger reconnection
-      if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
-        console.warn('🔄 401 error detected, triggering reconnection...')
-        triggerReconnection()
-      }
+      // Don't trigger reconnection for cursor broadcast failures
     }
-  }, [user, profile?.display_name, validateSession])
+  }, [user, profile?.display_name])
 
   // Trigger reconnection when auth issues are detected
   const triggerReconnection = useCallback(() => {
@@ -318,18 +343,27 @@ export function useRealtime({
     await presenceChannelRef.current.track(newPresenceState)
   }, [user, profile?.display_name])
 
+  // Track if channels are being initialized to prevent duplicates
+  const isInitializingRef = useRef(false)
+  const hasLoggedWaitingRef = useRef(false)
+  
   // Initialize realtime channels
   useEffect(() => {
+    // Prevent multiple initializations
+    if (channelRef.current || presenceChannelRef.current || isInitializingRef.current) {
+      return
+    }
+    
     if (!user || !profile) {
-      console.log('⏳ Waiting for user authentication before setting up realtime...')
+      // Only log once per authentication state
+      if (!hasLoggedWaitingRef.current) {
+        console.log('⏳ Waiting for user authentication before setting up realtime...')
+        hasLoggedWaitingRef.current = true
+      }
       return
     }
-
-    // Prevent multiple channel creation
-    if (channelRef.current || presenceChannelRef.current) {
-      console.log('⚠️ Channels already exist, skipping creation')
-      return
-    }
+    
+    isInitializingRef.current = true
 
     console.log('🚀 Setting up realtime channels for canvas:', canvasId)
     
@@ -407,9 +441,9 @@ export function useRealtime({
             console.log('🏷️ Object ID:', newRecord.id)
             
             // Handle ownership changes
-            if (onOwnershipChanged) {
+            if (onOwnershipChangedRef.current) {
               console.log('📡 Calling onOwnershipChanged handler')
-              onOwnershipChanged(payload)
+              onOwnershipChangedRef.current(payload)
             } else {
               console.warn('⚠️ No onOwnershipChanged handler provided')
             }
@@ -424,41 +458,40 @@ export function useRealtime({
     channel
       .on('broadcast', { event: 'objects_deleted' }, (payload) => {
         console.log('📥 Broadcast objects_deleted received:', payload)
-        if (onObjectsDeleted) {
-          onObjectsDeleted(payload.payload as RealtimeEvents['objects_deleted'])
+        if (onObjectsDeletedRef.current) {
+          onObjectsDeletedRef.current(payload.payload as RealtimeEvents['objects_deleted'])
         }
       })
       .on('broadcast', { event: 'objects_duplicated' }, (payload) => {
         console.log('📥 Broadcast objects_duplicated received:', payload)
-        if (onObjectsDuplicated) {
-          onObjectsDuplicated(payload.payload as RealtimeEvents['objects_duplicated'])
+        if (onObjectsDuplicatedRef.current) {
+          onObjectsDuplicatedRef.current(payload.payload as RealtimeEvents['objects_duplicated'])
         }
       })
       // Add broadcast listeners as fallback for individual operations
       .on('broadcast', { event: 'object_created' }, (payload) => {
         console.log('📥 Broadcast object_created received:', payload)
-        if (onObjectCreated) {
-          onObjectCreated(payload.payload as RealtimeEvents['object_created'])
+        if (onObjectCreatedRef.current) {
+          onObjectCreatedRef.current(payload.payload as RealtimeEvents['object_created'])
         }
       })
       .on('broadcast', { event: 'object_updated' }, (payload) => {
         console.log('📥 Broadcast object_updated received:', payload)
-        if (onObjectUpdated) {
-          onObjectUpdated(payload.payload as RealtimeEvents['object_updated'])
+        if (onObjectUpdatedRef.current) {
+          onObjectUpdatedRef.current(payload.payload as RealtimeEvents['object_updated'])
         }
       })
       .on('broadcast', { event: 'object_deleted' }, (payload) => {
         console.log('📥 Broadcast object_deleted received:', payload)
-        if (onObjectDeleted) {
-          onObjectDeleted(payload.payload as RealtimeEvents['object_deleted'])
+        if (onObjectDeletedRef.current) {
+          onObjectDeletedRef.current(payload.payload as RealtimeEvents['object_deleted'])
         }
       })
       .on('broadcast', { event: 'cursor_moved' }, (payload) => {
         const cursorData = payload.payload as RealtimeEvents['cursor_moved']
-        console.log('📥 Cursor broadcast received:', cursorData.display_name, cursorData.position, 
-                   'timestamp:', cursorData.timestamp)
-        if (onCursorMoved) {
-          onCursorMoved(cursorData)
+        // Cursor broadcast received silently
+        if (onCursorMovedRef.current) {
+          onCursorMovedRef.current(cursorData)
         }
       })
 
@@ -474,18 +507,17 @@ export function useRealtime({
     })
     
     if (isDev) {
-      console.log('👤 Creating presence channel for user:', user.id, 'profile:', profile?.display_name)
-      console.log('👤 Presence channel key:', user.id)
+      // Presence channel created silently
     }
 
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         if (isDev) {
-          console.log('👥 Presence sync')
+          // Presence sync processed silently
         }
         const presenceState = presenceChannel.presenceState()
         if (isDev) {
-          console.log('👥 Raw presence state:', presenceState)
+          // Raw presence state processed silently
         }
         
         const onlineUsers: PresenceState[] = []
@@ -493,11 +525,11 @@ export function useRealtime({
         
         Object.values(presenceState).forEach((users: any) => {
           if (isDev) {
-            console.log('👥 Processing users group:', users)
+            // Users group processed silently
           }
           users.forEach((user: PresenceState) => {
             if (isDev) {
-              console.log('👥 Adding user to list:', user)
+              // User added to list silently
             }
             // Deduplicate users by user_id to prevent multiple entries for the same user
             if (!seenUserIds.has(user.user_id)) {
@@ -505,27 +537,26 @@ export function useRealtime({
               onlineUsers.push(user)
             } else {
               if (isDev) {
-                console.log('👥 Skipping duplicate user:', user.user_id, user.display_name)
+                // Duplicate user skipped silently
               }
             }
           })
         })
         
         if (isDev) {
-          console.log('👥 Final online users list:', onlineUsers)
-          console.log('👥 Updated online users from sync:', onlineUsers.length, onlineUsers.map(u => u.display_name))
+          // Final online users list processed silently
         }
         setState(prev => ({ ...prev, onlineUsers }))
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (isDev) {
-          console.log('👋 User joined:', key, newPresences)
+          // User joined silently
         }
         // Don't update state here - let sync handle it to avoid conflicts
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
         if (isDev) {
-          console.log('👋 User left:', key, leftPresences)
+          // User left silently
         }
         // Don't update state here - let sync handle it to avoid conflicts
       })
@@ -547,7 +578,9 @@ export function useRealtime({
             }))
           }),
           presenceChannel.subscribe(async (status) => {
-            console.log('👥 Presence channel status:', status)
+            if (isDev) {
+              // Presence channel status processed silently
+            }
             if (status === 'SUBSCRIBED') {
               // Join presence with initial state (only if profile is loaded)
               if (profile?.display_name) {
@@ -558,12 +591,12 @@ export function useRealtime({
                 }
                 
                 if (isDev) {
-                  console.log('👤 Tracking initial presence state:', initialPresenceState)
+                  // Initial presence state tracked silently
                 }
                 currentPresenceRef.current = initialPresenceState
                 await presenceChannel.track(initialPresenceState)
                 if (isDev) {
-                  console.log('👤 Successfully tracked presence for user:', user.id)
+                  // Presence tracked successfully
                 }
               } else {
                 console.warn('⚠️ Profile not loaded, cannot track presence')
@@ -585,6 +618,10 @@ export function useRealtime({
     // Cleanup function
     return () => {
       console.log('🧹 Cleaning up realtime channels')
+      
+      // Reset initialization flags
+      isInitializingRef.current = false
+      hasLoggedWaitingRef.current = false
       
       // Clean up auth subscription
       if (authSubscription) {
@@ -611,13 +648,13 @@ export function useRealtime({
         error: null,
       })
     }
-  }, [user, profile?.display_name, canvasId, onObjectCreated, onObjectUpdated, onObjectDeleted, onObjectsDeleted, onObjectsDuplicated, validateSession, triggerReconnection])
+  }, [user, profile?.display_name, canvasId])
 
   // Track presence once profile is loaded (separate effect to handle async profile loading)
   useEffect(() => {
     if (presenceChannelRef.current && user && profile?.display_name) {
       if (isDev) {
-        console.log('👤 Updating presence with profile:', profile.display_name)
+        // Presence updated with profile silently
       }
       const presenceState: PresenceState = {
         user_id: user.id,

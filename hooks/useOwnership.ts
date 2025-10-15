@@ -27,6 +27,9 @@ export function useOwnership({
   
   // Cleanup timers
   const cleanupTimersRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  
+  // Prevent multiple initializations
+  const initializedRef = useRef(false)
 
   // Get ownership status for an object
   const getOwnershipStatus = useCallback((objectId: string): OwnershipStatus => {
@@ -62,8 +65,9 @@ export function useOwnership({
 
   // Initialize ownership state from existing canvas objects
   useEffect(() => {
-    if (!user) return
+    if (!user || initializedRef.current) return
 
+    initializedRef.current = true
     const initializeOwnership = async () => {
       console.log('🏷️ Initializing ownership state from existing objects')
       const { data: objects, error } = await supabase

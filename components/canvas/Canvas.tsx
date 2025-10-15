@@ -24,16 +24,13 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
   const [currentScale, setCurrentScale] = useState(1)
+  const lastLoggedDimensionsRef = useRef({ width: 0, height: 0 })
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const [isHoveringObject, setIsHoveringObject] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isUserListModalOpen, setIsUserListModalOpen] = useState(false)
 
-  // Cursor position tracking refs
-  const cursorThrottleRef = useRef<NodeJS.Timeout | null>(null)
-  const lastCursorUpdateRef = useRef<number>(0)
-  
   // Other users' cursor positions
   const [otherCursors, setOtherCursors] = useState<Map<string, {
     userId: string
@@ -77,27 +74,30 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     onOwnershipRejected,
   })
 
-  // Handle cursor movements from other users
-  const handleOtherUserCursor = useCallback((event: any) => {
-    // Don't track our own cursor
-    if (event.user_id === user?.id) return
-    
-    console.log('👆 Rendering cursor for user:', event.display_name, event.position)
+
+  // Handle batched cursor updates from other users
+  const handleCursorUpdates = useCallback((updates: Array<{userId: string, displayName: string, position: {x: number, y: number}, timestamp: string}>) => {
+    // Cursor updates processed silently
     
     setOtherCursors(prev => {
       const updated = new Map(prev)
-      updated.set(event.user_id, {
-        userId: event.user_id,
-        displayName: event.display_name,
-        position: event.position,
-        lastSeen: Date.now(),
-        color: getUserColor(event.user_id)
+      
+      updates.forEach(update => {
+        updated.set(update.userId, {
+          userId: update.userId,
+          displayName: update.displayName,
+          position: update.position,
+          lastSeen: Date.now(),
+          color: getUserColor(update.userId)
+        })
       })
+      
       return updated
     })
   }, [user?.id, getUserColor])
 
-  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', (payload) => {
+  // Memoize the ownership handler to prevent useCanvas re-initialization
+  const ownershipHandler = useCallback((payload: any) => {
     // Handle ownership updates
     ownership.handleCanvasObjectUpdate(payload)
     
@@ -108,12 +108,14 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
       const newOwner = newRecord.owner
       
       // If object is now owned by someone else (not 'all' and not current user)
-      if (newOwner !== 'all' && newOwner !== user?.id && state.selectedObjects.includes(objectId)) {
-        console.log(`🚫 Auto-deselecting object ${objectId} - now owned by someone else`)
-        selectObjects(state.selectedObjects.filter(id => id !== objectId))
+      if (newOwner !== 'all' && newOwner !== user?.id) {
+        // We'll handle the deselection in a separate effect to avoid dependency issues
+        console.log(`🚫 Object ${objectId} now owned by someone else - will deselect`)
       }
     }
-  }, ownership.handleNewObjectCreated, handleOtherUserCursor)
+  }, [ownership, user?.id])
+
+  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
 
   // Sync tool and color state
   useEffect(() => {
@@ -137,8 +139,12 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         
         // Only update if dimensions actually changed (prevent feedback loops)
         setDimensions(prev => {
-          if (Math.abs(prev.width - newWidth) > 1 || Math.abs(prev.height - newHeight) > 1) {
-            console.log(`📐 Canvas dimensions updated: ${newWidth}x${newHeight} (was ${prev.width}x${prev.height})`)
+          if (Math.abs(prev.width - newWidth) > 10 || Math.abs(prev.height - newHeight) > 10) {
+            // Only log if we haven't logged these exact dimensions before
+            if (lastLoggedDimensionsRef.current.width !== newWidth || lastLoggedDimensionsRef.current.height !== newHeight) {
+              console.log(`📐 Canvas dimensions updated: ${newWidth}x${newHeight} (was ${prev.width}x${prev.height})`)
+              lastLoggedDimensionsRef.current = { width: newWidth, height: newHeight }
+            }
             return {
               width: newWidth,
               height: newHeight,
@@ -240,40 +246,17 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     const stage = e.target.getStage()
     const pointerPos = stage.getPointerPosition()
     
-    // Track cursor position for multiplayer cursors (throttled to ~50ms)
+    // Track cursor position for multiplayer cursors (no throttling - rely on batching)
     if (pointerPos) {
-      const now = Date.now()
-      const timeSinceLastUpdate = now - lastCursorUpdateRef.current
-      
       // Convert screen coordinates to stage coordinates for consistent positioning
       const stagePos = {
         x: (pointerPos.x - stage.x()) / stage.scaleX(),
         y: (pointerPos.y - stage.y()) / stage.scaleY()
       }
       
-      // Throttle cursor updates to ~50ms (20 FPS) for good responsiveness
-      if (timeSinceLastUpdate >= 50) {
-        // Clear any pending throttled update
-        if (cursorThrottleRef.current) {
-          clearTimeout(cursorThrottleRef.current)
-          cursorThrottleRef.current = null
-        }
-        
-        // Update cursor position immediately
-        realtime.broadcastCursorMoved(stagePos)
-        lastCursorUpdateRef.current = now
-        console.log('🎯 Cursor position updated:', stagePos)
-      } else {
-        // Schedule a throttled update if none is pending
-        if (!cursorThrottleRef.current) {
-          cursorThrottleRef.current = setTimeout(() => {
-            realtime.broadcastCursorMoved(stagePos)
-            lastCursorUpdateRef.current = Date.now()
-            cursorThrottleRef.current = null
-            console.log('🎯 Cursor position updated (throttled):', stagePos)
-          }, 50 - timeSinceLastUpdate)
-        }
-      }
+      // Broadcast cursor position immediately - batching will handle the frequency
+      realtime.broadcastCursorMoved(stagePos)
+      // Cursor position updates processed silently
     }
     
     // Handle rectangle creation
@@ -425,17 +408,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, onToolChange])
 
-  // Cleanup cursor throttle timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (cursorThrottleRef.current) {
-        clearTimeout(cursorThrottleRef.current)
-      }
-    }
-  }, [])
-
-
-  // Cleanup stale cursors (remove cursors that haven't been seen for 5 seconds)
+  // Cleanup stale cursors (remove cursors that haven't been seen for 10 seconds - more lenient for batching)
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
       const now = Date.now()
@@ -444,8 +417,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         let hasChanges = false
         
         for (const [userId, cursor] of updated.entries()) {
-          if (now - cursor.lastSeen > 5000) { // 5 seconds timeout
-            console.log('🧹 Removing stale cursor for user:', cursor.displayName)
+          if (now - cursor.lastSeen > 10000) { // 10 seconds timeout - more lenient for batching
             updated.delete(userId)
             hasChanges = true
           }
@@ -453,7 +425,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         
         return hasChanges ? new Map(updated) : prev
       })
-    }, 1000) // Check every second
+    }, 3000) // Check every 3 seconds - optimized for 60fps batching
 
     return () => clearInterval(cleanupInterval)
   }, [])
