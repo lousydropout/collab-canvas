@@ -339,6 +339,50 @@ export function useOwnership({
     }
   }, [user, onOwnershipReleased])
 
+  // Extend ownership on activity (drag, resize, etc.)
+  const extendOwnership = useCallback((objectId: string) => {
+    const ownership = ownershipState[objectId]
+    if (!ownership?.is_claimed_by_me || !user || !profile) return
+    
+    // Clear existing timer
+    const existingTimer = cleanupTimersRef.current.get(objectId)
+    if (existingTimer) {
+      clearTimeout(existingTimer)
+    }
+    
+    const newClaimedAt = new Date().toISOString()
+    const newExpiresAt = new Date(Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS).toISOString()
+    
+    // Set new timer
+    const newTimer = setTimeout(() => {
+      console.log(`⏰ Auto-releasing expired claim: ${objectId}`)
+      releaseObject(objectId, true)
+    }, OWNERSHIP_CONFIG.CLAIM_DURATION_MS)
+    
+    cleanupTimersRef.current.set(objectId, newTimer)
+    
+    // Update local state
+    setOwnershipState(prev => ({
+      ...prev,
+      [objectId]: {
+        ...prev[objectId],
+        claimed_at: newClaimedAt,
+        expires_at: newExpiresAt,
+      }
+    }))
+    
+    // Broadcast renewal to other users
+    onOwnershipClaimed?.({
+      object_id: objectId,
+      owner_id: user.id,
+      owner_name: profile.display_name,
+      claimed_at: newClaimedAt,
+      expires_at: newExpiresAt,
+    })
+    
+    console.log(`🔄 Extended ownership for object ${objectId}`)
+  }, [ownershipState, releaseObject, user, profile, onOwnershipClaimed])
+
   // Release all objects claimed by this user
   const releaseAllObjects = useCallback(async () => {
     const myObjects = Object.keys(ownershipState).filter(objectId => 
@@ -508,6 +552,7 @@ export function useOwnership({
     releaseObject,
     releaseAllObjects,
     releaseAllExcept,
+    extendOwnership,
     
     // Utilities
     canEdit,

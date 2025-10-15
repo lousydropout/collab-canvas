@@ -13,6 +13,7 @@ interface RectangleProps {
   ownerInfo?: { owner_name: string | null; expires_at: string | null } | null
   isPendingClaim?: boolean
   onClaimAttempt?: (objectId: string) => Promise<boolean>
+  onOwnershipExtend?: (objectId: string) => void
 }
 
 export default function Rectangle({ 
@@ -23,7 +24,8 @@ export default function Rectangle({
   ownershipStatus = 'available',
   ownerInfo,
   isPendingClaim = false,
-  onClaimAttempt
+  onClaimAttempt,
+  onOwnershipExtend
 }: RectangleProps) {
   // Removed real-time drag throttling since we only update on drag end
   
@@ -160,6 +162,9 @@ export default function Rectangle({
     }
     console.log(`📦 Rectangle moved to: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`)
     onMove?.(object.id, newPos)
+    
+    // Extend ownership after drag
+    onOwnershipExtend?.(object.id)
   }
 
   const ownershipStyling = getOwnershipStyling()

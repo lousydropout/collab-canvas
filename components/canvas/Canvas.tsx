@@ -135,6 +135,15 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     onOwnershipExpiredRef.current = onOwnershipExpired
   }, [onOwnershipExpired])
 
+  // Wrapper for updateObject that also extends ownership
+  const handleObjectTransform = useCallback(async (id: string, updates: any) => {
+    // Update the object
+    await updateObject(id, updates)
+    
+    // Extend ownership after transform (resize/rotate)
+    ownership.extendOwnership(id)
+  }, [updateObject, ownership])
+
   // Sync tool and color state
   useEffect(() => {
     setTool(currentTool)
@@ -545,6 +554,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               ownerInfo={ownerInfo}
               isPendingClaim={isPendingClaim}
               onClaimAttempt={ownership.claimObject}
+              onOwnershipExtend={ownership.extendOwnership}
             />
           )
         })}
@@ -552,7 +562,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         {/* Transformer for selected objects */}
         <KonvaTransformer
           selectedIds={state.selectedObjects}
-          onTransform={updateObject}
+          onTransform={handleObjectTransform}
         />
         
         {/* Other users' cursors */}
