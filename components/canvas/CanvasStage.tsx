@@ -11,10 +11,12 @@ interface CanvasStageProps {
   onScaleChange?: (scale: number) => void
   onPositionChange?: (position: { x: number; y: number }) => void
   onStageClick?: (e: any) => void
+  onMouseDown?: (e: any) => void
   onMouseMove?: (e: any) => void
   onMouseUp?: (e: any) => void
   onMouseLeave?: (e: any) => void
   cursor?: string
+  draggable?: boolean
 }
 
 export default function CanvasStage({
@@ -24,10 +26,12 @@ export default function CanvasStage({
   onScaleChange,
   onPositionChange,
   onStageClick,
+  onMouseDown,
   onMouseMove,
   onMouseUp,
   onMouseLeave,
-  cursor = 'grab'
+  cursor = 'grab',
+  draggable = true
 }: CanvasStageProps) {
   const stageRef = useRef<Konva.Stage>(null)
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 })
@@ -148,11 +152,12 @@ export default function CanvasStage({
         scaleX={stageScale}
         scaleY={stageScale}
         onWheel={handleWheel}
-        draggable
+        draggable={draggable}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={onStageClick}
         onTap={onStageClick}
+        onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}

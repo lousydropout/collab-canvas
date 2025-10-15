@@ -203,6 +203,37 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [])
 
+  // Handle mouse down to start rectangle creation
+  const handleMouseDown = useCallback((e: any) => {
+    // Only handle clicks on the stage itself (not on shapes)
+    const clickedOnEmpty = e.target === e.target.getStage()
+    
+    if (!clickedOnEmpty || currentTool !== 'rectangle') {
+      return
+    }
+    
+    const stage = e.target.getStage()
+    const pointerPos = stage.getPointerPosition()
+    
+    if (pointerPos) {
+      // Convert screen coordinates to stage coordinates
+      const stagePos = {
+        x: (pointerPos.x - stage.x()) / stage.scaleX(),
+        y: (pointerPos.y - stage.y()) / stage.scaleY()
+      }
+      
+      console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
+      setIsCreatingRect(true)
+      setIsDragging(false) // Reset drag state
+      setCreatingRect({
+        startX: stagePos.x,
+        startY: stagePos.y,
+        endX: stagePos.x,
+        endY: stagePos.y,
+      })
+    }
+  }, [currentTool])
+
   // Handle canvas click for rectangle creation
   const handleCanvasClick = useCallback(async (e: any) => {
     // Only handle clicks on the stage itself (not on shapes)
@@ -216,53 +247,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     const pointerPos = stage.getPointerPosition()
     const isShiftClick = e.evt?.shiftKey || false
     
-    if (currentTool === 'rectangle' && pointerPos) {
-      // Convert screen coordinates to stage coordinates
-      const stagePos = {
-        x: (pointerPos.x - stage.x()) / stage.scaleX(),
-        y: (pointerPos.y - stage.y()) / stage.scaleY()
-      }
-      
-      if (!isCreatingRect) {
-        // Start rectangle creation
-        console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
-        setIsCreatingRect(true)
-        setIsDragging(false) // Reset drag state
-        setCreatingRect({
-          startX: stagePos.x,
-          startY: stagePos.y,
-          endX: stagePos.x,
-          endY: stagePos.y,
-        })
-      } else if (creatingRect && !isDragging) {
-        // Finish rectangle creation (click-to-finish workflow)
-        // Only if we haven't been dragging (to avoid conflict with drag workflow)
-        console.log('🏁 Finishing rectangle creation at stage coords:', stagePos)
-        const width = Math.abs(stagePos.x - creatingRect.startX)
-        const height = Math.abs(stagePos.y - creatingRect.startY)
-        
-        // Create rectangle with minimum size of 50x50 if too small
-        const finalWidth = Math.max(width, 50)
-        const finalHeight = Math.max(height, 50)
-        const x = Math.min(creatingRect.startX, stagePos.x)
-        const y = Math.min(creatingRect.startY, stagePos.y)
-        
-        await createRectangle({
-          type: 'rectangle',
-          x,
-          y,
-          width: finalWidth,
-          height: finalHeight,
-          color: state.currentColor,
-        })
-        
-        console.log('✅ Rectangle created!')
-        setIsCreatingRect(false)
-        setCreatingRect(null)
-        setIsDragging(false)
-        onToolChange('select') // Switch back to select tool
-      }
-    } else if (currentTool === 'select') {
+    if (currentTool === 'select') {
       // Deselect all when clicking empty space
       selectObjects([])
       
@@ -272,7 +257,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         ownership.releaseAllObjects()
       }
     }
-  }, [currentTool, isCreatingRect, creatingRect, isDragging, selectObjects, ownership, createRectangle, onToolChange])
+  }, [currentTool, selectObjects, ownership])
 
   // Handle mouse move during rectangle creation and cursor updates
   const handleMouseMove = useCallback((e: any) => {
@@ -304,12 +289,6 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
           y: (pointerPos.y - stage.y()) / stage.scaleY()
         }
         
-        // Check if we've moved enough to consider this a drag
-        const dragDistance = Math.abs(stagePos.x - creatingRect.startX) + Math.abs(stagePos.y - creatingRect.startY)
-        if (dragDistance > 5) {
-          setIsDragging(true)
-        }
-        
         setCreatingRect(prev => prev ? {
           ...prev,
           endX: stagePos.x,
@@ -326,27 +305,50 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [isCreatingRect, creatingRect, currentTool, realtime])
 
-  // Handle mouse up to finish rectangle creation (drag workflow only)
-  const handleMouseUp = useCallback(async () => {
-    if (isCreatingRect && creatingRect && isDragging) {
-      const width = Math.abs(creatingRect.endX - creatingRect.startX)
-      const height = Math.abs(creatingRect.endY - creatingRect.startY)
+  // Handle mouse up to finish rectangle creation
+  const handleMouseUp = useCallback(async (e: any) => {
+    if (isCreatingRect && creatingRect) {
+      const stage = e.target.getStage()
+      const pointerPos = stage.getPointerPosition()
       
-      // Only create if rectangle is large enough
-      if (width > 10 && height > 10) {
-        const x = Math.min(creatingRect.startX, creatingRect.endX)
-        const y = Math.min(creatingRect.startY, creatingRect.endY)
+      if (pointerPos) {
+        // Convert screen coordinates to stage coordinates
+        const stagePos = {
+          x: (pointerPos.x - stage.x()) / stage.scaleX(),
+          y: (pointerPos.y - stage.y()) / stage.scaleY()
+        }
         
-        await createRectangle({
-          type: 'rectangle',
-          x,
-          y,
-          width,
-          height,
-          color: state.currentColor,
-        })
+        // Calculate L1 distance
+        const l1Distance = Math.abs(stagePos.x - creatingRect.startX) + Math.abs(stagePos.y - creatingRect.startY)
         
-        console.log('✅ Rectangle created via drag!')
+        // Calculate viewport diagonal (using stage dimensions)
+        const stageWidth = stage.width()
+        const stageHeight = stage.height()
+        const viewportDiagonal = Math.sqrt(stageWidth * stageWidth + stageHeight * stageHeight)
+        const threshold = viewportDiagonal * 0.02
+        
+        console.log(`📏 L1 distance: ${l1Distance.toFixed(2)}, threshold: ${threshold.toFixed(2)}`)
+        
+        // Only create rectangle if distance is above threshold
+        if (l1Distance >= threshold) {
+          const width = Math.abs(stagePos.x - creatingRect.startX)
+          const height = Math.abs(stagePos.y - creatingRect.startY)
+          const x = Math.min(creatingRect.startX, stagePos.x)
+          const y = Math.min(creatingRect.startY, stagePos.y)
+          
+          await createRectangle({
+            type: 'rectangle',
+            x,
+            y,
+            width,
+            height,
+            color: state.currentColor,
+          })
+          
+          console.log('✅ Rectangle created!')
+        } else {
+          console.log('❌ Rectangle creation cancelled - distance too small')
+        }
       }
       
       setIsCreatingRect(false)
@@ -354,7 +356,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
       setIsDragging(false)
       onToolChange('select') // Switch back to select tool
     }
-  }, [isCreatingRect, creatingRect, isDragging, createRectangle, onToolChange])
+  }, [isCreatingRect, creatingRect, createRectangle, onToolChange])
 
   // Handle object selection (with multi-select support)
   const handleObjectSelect = useCallback((objectId: string, event?: any) => {
@@ -527,6 +529,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         onScaleChange={setCurrentScale}
         onPositionChange={handleStagePositionChange}
         onStageClick={handleCanvasClick}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => {
@@ -540,6 +543,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               ? 'pointer' 
               : 'default'
         }
+        draggable={!isCreatingRect}
       >
         <Grid 
           width={dimensions.width} 
