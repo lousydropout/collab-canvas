@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { RealtimeChannel, REALTIME_LISTEN_TYPES } from '@supabase/supabase-js'
+import { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { RealtimeEvents, PresenceState, RealtimeState, CanvasObject } from '@/types/realtime'
 import { useAuth } from './useAuth'
 import { AuthService } from '@/lib/supabase/auth'
+
+const isDev = process.env.NODE_ENV === 'development'
 
 interface UseRealtimeProps {
   canvasId: string
@@ -75,7 +77,9 @@ export function useRealtime({
       return
     }
 
-    console.log('📡 Broadcasting object created:', object.id, 'by', profile.display_name)
+    if (isDev) {
+      console.log('📡 Broadcasting object created:', object.id, 'by', profile.display_name)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'object_created',
@@ -85,7 +89,7 @@ export function useRealtime({
         creatorDisplayName: profile.display_name,
       },
     })
-  }, [user, profile, validateSession])
+  }, [user, profile?.display_name, validateSession])
 
   // Broadcast an object update
   const broadcastObjectUpdated = useCallback(async (object: CanvasObject) => {
@@ -98,7 +102,9 @@ export function useRealtime({
       return
     }
 
-    console.log('📡 Broadcasting object updated:', object.id)
+    if (isDev) {
+      console.log('📡 Broadcasting object updated:', object.id)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'object_updated',
@@ -113,7 +119,9 @@ export function useRealtime({
   const broadcastObjectDeleted = useCallback(async (objectId: string) => {
     if (!channelRef.current || !user) return
 
-    console.log('📡 Broadcasting object deleted:', objectId)
+    if (isDev) {
+      console.log('📡 Broadcasting object deleted:', objectId)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'object_deleted',
@@ -128,7 +136,9 @@ export function useRealtime({
   const broadcastObjectsDeleted = useCallback(async (objectIds: string[]) => {
     if (!channelRef.current || !user || objectIds.length === 0) return
 
-    console.log('📡 Broadcasting objects deleted:', objectIds)
+    if (isDev) {
+      console.log('📡 Broadcasting objects deleted:', objectIds)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'objects_deleted',
@@ -143,7 +153,9 @@ export function useRealtime({
   const broadcastObjectsDuplicated = useCallback(async (originalIds: string[], newObjects: CanvasObject[]) => {
     if (!channelRef.current || !user || !profile) return
 
-    console.log('📡 Broadcasting objects duplicated:', originalIds.length, 'objects by', profile.display_name)
+    if (isDev) {
+      console.log('📡 Broadcasting objects duplicated:', originalIds.length, 'objects by', profile.display_name)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'objects_duplicated',
@@ -154,13 +166,15 @@ export function useRealtime({
         creatorDisplayName: profile.display_name,
       },
     })
-  }, [user, profile])
+  }, [user, profile?.display_name])
 
   // Broadcast ownership claimed
   const broadcastOwnershipClaimed = useCallback(async (event: { object_id: string; owner_id: string; owner_name: string; claimed_at: string; expires_at: string }) => {
     if (!channelRef.current || !user) return
 
-    console.log('📡 Broadcasting ownership claimed:', event.object_id)
+    if (isDev) {
+      console.log('📡 Broadcasting ownership claimed:', event.object_id)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'ownership_claimed',
@@ -172,7 +186,9 @@ export function useRealtime({
   const broadcastOwnershipReleased = useCallback(async (event: { object_id: string; former_owner_id: string; released_at: string }) => {
     if (!channelRef.current || !user) return
 
-    console.log('📡 Broadcasting ownership released:', event.object_id)
+    if (isDev) {
+      console.log('📡 Broadcasting ownership released:', event.object_id)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'ownership_released',
@@ -184,7 +200,9 @@ export function useRealtime({
   const broadcastOwnershipRejected = useCallback(async (event: { object_id: string; requesting_user_id: string; current_owner_id: string; current_owner_name: string }) => {
     if (!channelRef.current || !user) return
 
-    console.log('📡 Broadcasting ownership rejected:', event.object_id)
+    if (isDev) {
+      console.log('📡 Broadcasting ownership rejected:', event.object_id)
+    }
     await channelRef.current.send({
       type: 'broadcast',
       event: 'ownership_rejected',
@@ -206,7 +224,9 @@ export function useRealtime({
       return
     }
 
-    console.log('📡 Broadcasting cursor position:', position)
+    if (isDev) {
+      console.log('📡 Broadcasting cursor position:', position)
+    }
     try {
       await channelRef.current.send({
         type: 'broadcast',
@@ -226,16 +246,20 @@ export function useRealtime({
         triggerReconnection()
       }
     }
-  }, [user, profile, validateSession])
+  }, [user, profile?.display_name, validateSession])
 
   // Trigger reconnection when auth issues are detected
   const triggerReconnection = useCallback(() => {
     if (isReconnectingRef.current) {
-      console.log('🔄 Reconnection already in progress, skipping...')
+      if (isDev) {
+        console.log('🔄 Reconnection already in progress, skipping...')
+      }
       return
     }
 
-    console.log('🔄 Triggering reconnection due to auth issues...')
+    if (isDev) {
+      console.log('🔄 Triggering reconnection due to auth issues...')
+    }
     isReconnectingRef.current = true
     
     // Clear existing timeout
@@ -246,7 +270,9 @@ export function useRealtime({
     // Set a timeout to attempt reconnection
     reconnectTimeoutRef.current = setTimeout(async () => {
       try {
-        console.log('🔄 Attempting to reconnect channels...')
+        if (isDev) {
+          console.log('🔄 Attempting to reconnect channels...')
+        }
         
         // Clean up existing channels
         if (channelRef.current) {
@@ -262,7 +288,9 @@ export function useRealtime({
         await new Promise(resolve => setTimeout(resolve, 1000))
 
         // Reinitialize channels (this will be handled by the main useEffect)
-        console.log('🔄 Channels cleaned up, reinitializing...')
+        if (isDev) {
+          console.log('🔄 Channels cleaned up, reinitializing...')
+        }
         
       } catch (error) {
         console.error('❌ Reconnection failed:', error)
@@ -288,12 +316,18 @@ export function useRealtime({
     currentPresenceRef.current = newPresenceState
     
     await presenceChannelRef.current.track(newPresenceState)
-  }, [user, profile])
+  }, [user, profile?.display_name])
 
   // Initialize realtime channels
   useEffect(() => {
     if (!user || !profile) {
       console.log('⏳ Waiting for user authentication before setting up realtime...')
+      return
+    }
+
+    // Prevent multiple channel creation
+    if (channelRef.current || presenceChannelRef.current) {
+      console.log('⚠️ Channels already exist, skipping creation')
       return
     }
 
@@ -324,6 +358,9 @@ export function useRealtime({
         // Supabase should automatically reconnect channels with new token
         // Reset reconnection flag
         isReconnectingRef.current = false
+      } else if (event === 'INITIAL_SESSION') {
+        console.log('🔐 Initial session detected, no action needed')
+        // Don't do anything for initial session - channels are already being set up
       }
     })
     
@@ -435,26 +472,62 @@ export function useRealtime({
         },
       },
     })
+    
+    if (isDev) {
+      console.log('👤 Creating presence channel for user:', user.id, 'profile:', profile?.display_name)
+      console.log('👤 Presence channel key:', user.id)
+    }
 
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
-        console.log('👥 Presence sync')
+        if (isDev) {
+          console.log('👥 Presence sync')
+        }
         const presenceState = presenceChannel.presenceState()
+        if (isDev) {
+          console.log('👥 Raw presence state:', presenceState)
+        }
+        
         const onlineUsers: PresenceState[] = []
+        const seenUserIds = new Set<string>()
         
         Object.values(presenceState).forEach((users: any) => {
+          if (isDev) {
+            console.log('👥 Processing users group:', users)
+          }
           users.forEach((user: PresenceState) => {
-            onlineUsers.push(user)
+            if (isDev) {
+              console.log('👥 Adding user to list:', user)
+            }
+            // Deduplicate users by user_id to prevent multiple entries for the same user
+            if (!seenUserIds.has(user.user_id)) {
+              seenUserIds.add(user.user_id)
+              onlineUsers.push(user)
+            } else {
+              if (isDev) {
+                console.log('👥 Skipping duplicate user:', user.user_id, user.display_name)
+              }
+            }
           })
         })
         
+        if (isDev) {
+          console.log('👥 Final online users list:', onlineUsers)
+          console.log('👥 Updated online users from sync:', onlineUsers.length, onlineUsers.map(u => u.display_name))
+        }
         setState(prev => ({ ...prev, onlineUsers }))
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('👋 User joined:', key, newPresences)
+        if (isDev) {
+          console.log('👋 User joined:', key, newPresences)
+        }
+        // Don't update state here - let sync handle it to avoid conflicts
       })
       .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('👋 User left:', key, leftPresences)
+        if (isDev) {
+          console.log('👋 User left:', key, leftPresences)
+        }
+        // Don't update state here - let sync handle it to avoid conflicts
       })
 
     presenceChannelRef.current = presenceChannel
@@ -484,8 +557,16 @@ export function useRealtime({
                   last_seen: new Date().toISOString(),
                 }
                 
+                if (isDev) {
+                  console.log('👤 Tracking initial presence state:', initialPresenceState)
+                }
                 currentPresenceRef.current = initialPresenceState
                 await presenceChannel.track(initialPresenceState)
+                if (isDev) {
+                  console.log('👤 Successfully tracked presence for user:', user.id)
+                }
+              } else {
+                console.warn('⚠️ Profile not loaded, cannot track presence')
               }
             }
           }),
@@ -530,12 +611,14 @@ export function useRealtime({
         error: null,
       })
     }
-  }, [user, profile, canvasId, onObjectCreated, onObjectUpdated, onObjectDeleted, onObjectsDeleted, onObjectsDuplicated, validateSession, triggerReconnection])
+  }, [user, profile?.display_name, canvasId, onObjectCreated, onObjectUpdated, onObjectDeleted, onObjectsDeleted, onObjectsDuplicated, validateSession, triggerReconnection])
 
   // Track presence once profile is loaded (separate effect to handle async profile loading)
   useEffect(() => {
     if (presenceChannelRef.current && user && profile?.display_name) {
-      console.log('👤 Updating presence with profile:', profile.display_name)
+      if (isDev) {
+        console.log('👤 Updating presence with profile:', profile.display_name)
+      }
       const presenceState: PresenceState = {
         user_id: user.id,
         display_name: profile.display_name,

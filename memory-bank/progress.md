@@ -110,6 +110,15 @@ All core requirements have been implemented and are working:
 **Decision:** React hooks only (no external state library)  
 **Reason:** Sufficient for MVP complexity, keeps bundle size small
 
+## Recent Bug Fixes ✅
+
+### Presence Channel Inconsistency Fix (Latest)
+- **Issue:** Realtime indicator showing inconsistent user counts across different browser instances
+- **Root Cause:** Same user creating multiple presence channel connections due to useEffect dependency issues, causing duplicate entries in presence state
+- **Solution:** Fixed useEffect dependencies, added user deduplication logic, and prevented multiple channel creation
+- **Files Modified:** `hooks/useRealtime.ts`
+- **Status:** ✅ Fixed and tested
+
 ## Next Steps (Post-MVP)
 Post-MVP enhancements can be added as needed, but the core collaborative canvas MVP is complete and functional. Potential future enhancements:
 - Additional shape tools (circles, text)
