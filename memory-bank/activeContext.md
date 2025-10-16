@@ -7,6 +7,7 @@
 The CollabCanvas MVP has been successfully completed and delivered. All core requirements have been implemented and are working in production.
 
 ## Recent Updates (Latest Session)
+- ✅ **Ownership Bug Fix** - Fixed issue where rejected ownership claims would get stuck in pending state and prevent further claims
 - ✅ **README Updated** - Comprehensive documentation reflecting current status
 - ✅ **Ellipse Support** - Added ellipse creation and manipulation alongside rectangles
 - ✅ **Batching System** - Implemented 16ms timer-based flushing for smooth multi-user collaboration

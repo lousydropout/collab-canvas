@@ -118,6 +118,7 @@ All core requirements have been implemented and are working:
 - ✅ **Optimized Rendering** - Reduced React re-renders during collaborative sessions
 
 ### Bug Fixes
+- ✅ **Ownership Claim Bug** - Fixed issue where rejected ownership claims would get stuck in pending state and prevent further claims
 - ✅ **Presence Consistency** - Fixed duplicate user counting across browser instances
 - ✅ **Channel Management** - Prevented multiple presence channel connections
 - ✅ **User Deduplication** - Added logic to prevent same user appearing multiple times

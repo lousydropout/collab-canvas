@@ -191,10 +191,16 @@ export function useOwnership({
             current_owner_name: ownerProfile?.display_name || 'Unknown User',
           })
 
+          // Clean up pending claims before returning
+          pendingClaimsRef.current.delete(objectId)
+          setPendingClaims(new Set(pendingClaimsRef.current))
           return false
         }
         
         console.error('❌ Error claiming object:', error)
+        // Clean up pending claims before returning
+        pendingClaimsRef.current.delete(objectId)
+        setPendingClaims(new Set(pendingClaimsRef.current))
         return false
       }
 
