@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import CanvasStage from './CanvasStage'
 import Grid from './Grid'
 import Rectangle from './Rectangle'
+import Ellipse from './Ellipse'
 import KonvaTransformer from './Transformer'
 import Cursor from './Cursor'
 import CursorPositionDisplay from './CursorPositionDisplay'
@@ -29,6 +30,8 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
   const lastLoggedDimensionsRef = useRef({ width: 0, height: 0 })
   const [isCreatingRect, setIsCreatingRect] = useState(false)
   const [creatingRect, setCreatingRect] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
+  const [isCreatingEllipse, setIsCreatingEllipse] = useState(false)
+  const [creatingEllipse, setCreatingEllipse] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const [isHoveringObject, setIsHoveringObject] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isUserListModalOpen, setIsUserListModalOpen] = useState(false)
@@ -122,7 +125,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [ownership, user?.id])
 
-  const { state, createRectangle, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
 
   // Handle ownership expiry by clearing selection
   const onOwnershipExpired = useCallback((event: any) => {
@@ -143,6 +146,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
 
   // Wrapper for updateObject that also extends ownership
   const handleObjectTransform = useCallback(async (id: string, updates: any) => {
+    console.log('🔄 handleObjectTransform called for:', id, 'with updates:', updates)
     // Update the object
     await updateObject(id, updates)
     
@@ -203,12 +207,12 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [])
 
-  // Handle mouse down to start rectangle creation
+  // Handle mouse down to start rectangle/ellipse creation
   const handleMouseDown = useCallback((e: any) => {
     // Only handle clicks on the stage itself (not on shapes)
     const clickedOnEmpty = e.target === e.target.getStage()
     
-    if (!clickedOnEmpty || currentTool !== 'rectangle') {
+    if (!clickedOnEmpty || (currentTool !== 'rectangle' && currentTool !== 'ellipse')) {
       return
     }
     
@@ -222,15 +226,27 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         y: (pointerPos.y - stage.y()) / stage.scaleY()
       }
       
-      console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
-      setIsCreatingRect(true)
-      setIsDragging(false) // Reset drag state
-      setCreatingRect({
-        startX: stagePos.x,
-        startY: stagePos.y,
-        endX: stagePos.x,
-        endY: stagePos.y,
-      })
+      if (currentTool === 'rectangle') {
+        console.log('🚀 Starting rectangle creation at stage coords:', stagePos)
+        setIsCreatingRect(true)
+        setIsDragging(false) // Reset drag state
+        setCreatingRect({
+          startX: stagePos.x,
+          startY: stagePos.y,
+          endX: stagePos.x,
+          endY: stagePos.y,
+        })
+      } else if (currentTool === 'ellipse') {
+        console.log('🔵 Starting ellipse creation at stage coords:', stagePos)
+        setIsCreatingEllipse(true)
+        setIsDragging(false) // Reset drag state
+        setCreatingEllipse({
+          startX: stagePos.x,
+          startY: stagePos.y,
+          endX: stagePos.x,
+          endY: stagePos.y,
+        })
+      }
     }
   }, [currentTool])
 
@@ -296,6 +312,23 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         } : null)
       }
     }
+
+    // Handle ellipse creation
+    if (isCreatingEllipse && creatingEllipse) {
+      if (pointerPos) {
+        // Convert screen coordinates to stage coordinates
+        const stagePos = {
+          x: (pointerPos.x - stage.x()) / stage.scaleX(),
+          y: (pointerPos.y - stage.y()) / stage.scaleY()
+        }
+        
+        setCreatingEllipse(prev => prev ? {
+          ...prev,
+          endX: stagePos.x,
+          endY: stagePos.y,
+        } : null)
+      }
+    }
     
     // Update cursor state for select tool
     if (currentTool === 'select') {
@@ -303,9 +336,9 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
       const isOverObject = target !== target.getStage()
       setIsHoveringObject(isOverObject)
     }
-  }, [isCreatingRect, creatingRect, currentTool, realtime])
+  }, [isCreatingRect, creatingRect, isCreatingEllipse, creatingEllipse, currentTool, realtime])
 
-  // Handle mouse up to finish rectangle creation
+  // Handle mouse up to finish rectangle/ellipse creation
   const handleMouseUp = useCallback(async (e: any) => {
     if (isCreatingRect && creatingRect) {
       const stage = e.target.getStage()
@@ -355,8 +388,55 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
       setCreatingRect(null)
       setIsDragging(false)
       onToolChange('select') // Switch back to select tool
+    } else if (isCreatingEllipse && creatingEllipse) {
+      const stage = e.target.getStage()
+      const pointerPos = stage.getPointerPosition()
+      
+      if (pointerPos) {
+        // Convert screen coordinates to stage coordinates
+        const stagePos = {
+          x: (pointerPos.x - stage.x()) / stage.scaleX(),
+          y: (pointerPos.y - stage.y()) / stage.scaleY()
+        }
+        
+        // Calculate L1 distance
+        const l1Distance = Math.abs(stagePos.x - creatingEllipse.startX) + Math.abs(stagePos.y - creatingEllipse.startY)
+        
+        // Calculate viewport diagonal (using stage dimensions)
+        const stageWidth = stage.width()
+        const stageHeight = stage.height()
+        const viewportDiagonal = Math.sqrt(stageWidth * stageWidth + stageHeight * stageHeight)
+        const threshold = viewportDiagonal * 0.02
+        
+        console.log(`📏 L1 distance: ${l1Distance.toFixed(2)}, threshold: ${threshold.toFixed(2)}`)
+        
+        // Only create ellipse if distance is above threshold
+        if (l1Distance >= threshold) {
+          const width = Math.abs(stagePos.x - creatingEllipse.startX)
+          const height = Math.abs(stagePos.y - creatingEllipse.startY)
+          const x = Math.min(creatingEllipse.startX, stagePos.x)
+          const y = Math.min(creatingEllipse.startY, stagePos.y)
+          
+          await createEllipse({
+            x,
+            y,
+            width,
+            height,
+            color: state.currentColor,
+          })
+          
+          console.log('✅ Ellipse created!')
+        } else {
+          console.log('❌ Ellipse creation cancelled - distance too small')
+        }
+      }
+      
+      setIsCreatingEllipse(false)
+      setCreatingEllipse(null)
+      setIsDragging(false)
+      onToolChange('select') // Switch back to select tool
     }
-  }, [isCreatingRect, creatingRect, createRectangle, onToolChange])
+  }, [isCreatingRect, creatingRect, isCreatingEllipse, creatingEllipse, createRectangle, createEllipse, onToolChange, state.currentColor])
 
   // Handle object selection (with multi-select support)
   const handleObjectSelect = useCallback((objectId: string, event?: any) => {
@@ -431,6 +511,12 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
           setIsDragging(false)
           onToolChange('select')
           console.log('🚫 Cancelled rectangle creation')
+        } else if (isCreatingEllipse) {
+          setIsCreatingEllipse(false)
+          setCreatingEllipse(null)
+          setIsDragging(false)
+          onToolChange('select')
+          console.log('🚫 Cancelled ellipse creation')
         } else {
           // Deselect all and release ownership
           selectObjects([])
@@ -444,7 +530,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, onToolChange])
+  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, isCreatingEllipse, onToolChange])
 
   // Cleanup stale cursors (remove cursors that haven't been seen for 10 seconds - more lenient for batching)
   useEffect(() => {
@@ -480,6 +566,14 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     y: Math.min(creatingRect.startY, creatingRect.endY),
     width: Math.abs(creatingRect.endX - creatingRect.startX),
     height: Math.abs(creatingRect.endY - creatingRect.startY),
+  } : null
+
+  // Calculate ellipse dimensions for preview during creation
+  const previewEllipse = creatingEllipse ? {
+    x: Math.min(creatingEllipse.startX, creatingEllipse.endX),
+    y: Math.min(creatingEllipse.startY, creatingEllipse.endY),
+    width: Math.abs(creatingEllipse.endX - creatingEllipse.startX),
+    height: Math.abs(creatingEllipse.endY - creatingEllipse.startY),
   } : null
 
   return (
@@ -539,11 +633,13 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
         cursor={
           currentTool === 'rectangle' 
             ? 'crosshair' 
-            : currentTool === 'select' && isHoveringObject 
-              ? 'pointer' 
-              : 'default'
+            : currentTool === 'ellipse'
+              ? 'crosshair'
+              : currentTool === 'select' && isHoveringObject 
+                ? 'pointer' 
+                : 'default'
         }
-        draggable={!isCreatingRect}
+        draggable={!isCreatingRect && !isCreatingEllipse}
       >
         <Grid 
           width={dimensions.width} 
@@ -556,27 +652,48 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
           stageScale={currentScale}
         />
         
-        {/* Render existing rectangles */}
+        {/* Render existing objects */}
         {state.objects.map((object) => {
           const isSelected = state.selectedObjects.includes(object.id)
           const ownershipStatus = ownership.getOwnershipStatus(object.id)
           const ownerInfo = ownership.getOwnerInfo(object.id)
           const isPendingClaim = ownership.pendingClaims.has(object.id)
           
-          return (
-            <Rectangle
-              key={object.id}
-              object={object}
-              isSelected={isSelected}
-              onSelect={handleObjectSelect}
-              onMove={updateObject}
-              ownershipStatus={ownershipStatus}
-              ownerInfo={ownerInfo}
-              isPendingClaim={isPendingClaim}
-              onClaimAttempt={ownership.claimObject}
-              onOwnershipExtend={ownership.extendOwnership}
-            />
-          )
+          // Handle different object types
+          if (object.type === 'rectangle') {
+            return (
+              <Rectangle
+                key={object.id}
+                object={object}
+                isSelected={isSelected}
+                onSelect={handleObjectSelect}
+                onMove={updateObject}
+                ownershipStatus={ownershipStatus}
+                ownerInfo={ownerInfo}
+                isPendingClaim={isPendingClaim}
+                onClaimAttempt={ownership.claimObject}
+                onOwnershipExtend={ownership.extendOwnership}
+              />
+            )
+          } else if (object.type === 'ellipse') {
+            return (
+              <Ellipse
+                key={object.id}
+                object={object}
+                isSelected={isSelected}
+                onSelect={handleObjectSelect}
+                onMove={updateObject}
+                ownershipStatus={ownershipStatus}
+                ownerInfo={ownerInfo}
+                isPendingClaim={isPendingClaim}
+                onClaimAttempt={ownership.claimObject}
+                onOwnershipExtend={ownership.extendOwnership}
+              />
+            )
+          } else {
+            console.warn(`⚠️ Unknown object type: ${object.type}`)
+            return null
+          }
         })}
         
         {/* Transformer for selected objects */}
@@ -614,6 +731,29 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               updated_at: '',
             }}
             isSelected={false}
+          />
+        )}
+        
+        {/* Preview ellipse during creation */}
+        {previewEllipse && previewEllipse.width > 0 && previewEllipse.height > 0 && (
+          <Ellipse
+            object={{
+              id: 'preview-ellipse',
+              canvas_id: 'default',
+              type: 'ellipse',
+              x: previewEllipse.x,
+              y: previewEllipse.y,
+              width: previewEllipse.width,
+              height: previewEllipse.height,
+              color: state.currentColor,
+              rotation: 0,
+              owner: 'all',
+              created_by: null,
+              created_at: '',
+              updated_at: '',
+            }}
+            isSelected={false}
+            ownershipStatus="available"
           />
         )}
       </CanvasStage>

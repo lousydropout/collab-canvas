@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { CanvasObject, CanvasState, CreateObjectPayload } from '@/types/canvas'
+import { CanvasObject, CanvasState, CreateObjectPayload, EllipseData } from '@/types/canvas'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
@@ -152,10 +152,11 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       return
     }
     
-    // Skip if we initiated this operation locally
-    if (localOperationsRef.current.has(`update-${object.id}`)) {
+    // Skip if we initiated this operation locally (but only for a short time)
+    const localUpdateKey = `update-${object.id}`
+    if (localOperationsRef.current.has(localUpdateKey)) {
       console.log('🔄 Skipping local update operation:', object.id)
-      localOperationsRef.current.delete(`update-${object.id}`)
+      localOperationsRef.current.delete(localUpdateKey)
       return
     }
     
@@ -355,12 +356,75 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     }
   }, [user, canvasId, realtime])
 
+  // Create new ellipse
+  const createEllipse = useCallback(async (data: EllipseData) => {
+    if (!user) {
+      console.error('❌ User not authenticated')
+      return null
+    }
+
+    try {
+      console.log('🔵 Creating ellipse:', data)
+      const objectData = {
+        canvas_id: canvasId,
+        type: 'ellipse' as const,
+        x: data.x,
+        y: data.y,
+        width: data.width,
+        height: data.height,
+        color: data.color || state.currentColor,
+        rotation: data.rotation || 0,
+        owner: user.id, // Creator automatically owns the object
+        created_by: user.id,
+      }
+
+      const { data: newObject, error } = await supabase
+        .from('canvas_objects')
+        .insert([objectData])
+        .select('*')
+        .single()
+
+      if (error) {
+        console.error('❌ Error creating ellipse:', error)
+        return null
+      }
+
+      console.log('✅ Ellipse created:', newObject)
+      
+      // Track this as a local operation to prevent loop when we receive our own DB change
+      localOperationsRef.current.add(newObject.id)
+      
+      // Add to local state immediately (optimistic update)
+      setState(prev => ({
+        ...prev,
+        objects: [...prev.objects, newObject],
+        selectedObjects: [newObject.id],
+      }))
+
+      // Initialize ownership state for the creator (since we skip broadcast handling for our own objects)
+      if (onNewObjectCreated) {
+        console.log('🏷️ Initializing ownership state for creator:', newObject.id)
+        await onNewObjectCreated(newObject, user.id, profile?.display_name)
+      }
+
+      // Broadcast to other clients
+      await realtime.broadcastObjectCreated(newObject)
+
+      return newObject
+    } catch (error) {
+      console.error('❌ Failed to create ellipse:', error)
+      return null
+    }
+  }, [user, canvasId, realtime])
+
   // Removed broadcastObjectUpdate - we only update on drag end now
 
   // Full update with database persistence (for final updates)
   const updateObject = useCallback(async (id: string, updates: Partial<CanvasObject>) => {
     try {
       console.log(`📝 Updating object ${id}:`, updates)
+      console.log(`📝 Update details - x: ${updates.x}, y: ${updates.y}, width: ${updates.width}, height: ${updates.height}, rotation: ${updates.rotation}`)
+      
       const { data, error } = await supabase
         .from('canvas_objects')
         .update(updates)
@@ -385,7 +449,9 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       }))
       
       // Broadcast to other clients
+      console.log('📡 Broadcasting object update to other clients...')
       await realtime.broadcastObjectUpdated(data)
+      console.log('📡 Broadcast sent successfully')
     } catch (error) {
       console.error('❌ Failed to update object:', error)
     }
@@ -530,6 +596,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
   return {
     state,
     createRectangle,
+    createEllipse,
     updateObject,
     deleteObjects,
     duplicateObjects,

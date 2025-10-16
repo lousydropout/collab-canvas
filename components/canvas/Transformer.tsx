@@ -42,8 +42,18 @@ export default function KonvaTransformer({ selectedIds, onTransform }: Transform
         const scaleX = node.scaleX()
         const scaleY = node.scaleY()
         
-        // Update the actual size instead of using scale
-        const updates = {
+        // Check if this is an ellipse by looking at the node type
+        const isEllipse = node.getClassName() === 'Ellipse'
+        
+        // For ellipses, convert center coordinates back to top-left corner
+        // For rectangles, use coordinates directly (they're already top-left)
+        const updates = isEllipse ? {
+          x: node.x() - (node.width() * scaleX) / 2,
+          y: node.y() - (node.height() * scaleY) / 2,
+          width: node.width() * scaleX,
+          height: node.height() * scaleY,
+          rotation: node.rotation()
+        } : {
           x: node.x(),
           y: node.y(),
           width: node.width() * scaleX,

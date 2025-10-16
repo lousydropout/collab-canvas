@@ -64,11 +64,15 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
         </Button>
         
         <Button
-          variant="ghost"
+          variant={currentTool === 'ellipse' ? 'default' : 'ghost'}
           size="sm"
-          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed flex items-center justify-center"
-          title="Circle Tool (Coming Soon)"
-          disabled
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
+            currentTool === 'ellipse' 
+              ? '!bg-blue-600 !text-white hover:!bg-blue-700' 
+              : '!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100'
+          }`}
+          title="Ellipse Tool"
+          onClick={() => onToolChange('ellipse')}
         >
           <Circle className="h-4 w-4" />
         </Button>
