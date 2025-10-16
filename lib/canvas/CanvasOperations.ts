@@ -458,19 +458,30 @@ export class CanvasOperations {
   // ==================== Z-INDEX OPERATIONS ====================
 
   /**
-   * Bring object to the front (highest z-index)
+   * Bring object(s) to the front (highest z-index)
    * 
-   * @param id - Object ID to bring to front
+   * @param id - Object ID or array of object IDs to bring to front
    * @returns Promise<CanvasObject | null> Updated object or null if failed
    */
-  async bringToFront(id: string): Promise<CanvasObject | null> {
+  async bringToFront(id: string | string[]): Promise<CanvasObject | null> {
     try {
-      const nextZIndex = await this.getNextZIndex()
-      console.log(`🔝 Bringing object ${id} to front with z-index ${nextZIndex}`)
+      const ids = Array.isArray(id) ? id : [id]
+      console.log(`🔝 Bringing objects to front:`, ids)
       
-      return this.updateObject(id, { z_index: nextZIndex })
+      // Get the next available z-index for the first object
+      let nextZIndex = await this.getNextZIndex()
+      
+      // Update each object with sequential z-index values
+      let lastUpdated: CanvasObject | null = null
+      for (let i = 0; i < ids.length; i++) {
+        const objectZIndex = nextZIndex + i
+        console.log(`🔝 Bringing object ${ids[i]} to front with z-index ${objectZIndex}`)
+        lastUpdated = await this.updateObject(ids[i], { z_index: objectZIndex })
+      }
+      
+      return lastUpdated
     } catch (error) {
-      console.error('❌ Failed to bring object to front:', error)
+      console.error('❌ Failed to bring objects to front:', error)
       return null
     }
   }
