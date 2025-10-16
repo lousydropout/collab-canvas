@@ -134,20 +134,22 @@ export default function Canvas({
     }
   }, [ownership, user?.id])
 
-  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime, bringToFront } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime, operations } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
 
   // Notify parent component when selected objects change
   useEffect(() => {
     onSelectedObjectsChange?.(state.selectedObjects)
   }, [state.selectedObjects, onSelectedObjectsChange])
 
-  // Notify parent component when operations service is available
+  // Notify parent component when operations service changes (using ref to prevent infinite loops)
+  const previousOperationsRef = useRef<any>(null)
   useEffect(() => {
-    // Pass temporary z-index operations until CanvasOperations service is integrated
-    onOperationsChange?.({
-      bringToFront
-    })
-  }, [onOperationsChange]) // Remove bringToFront dependency
+    if (operations !== previousOperationsRef.current) {
+      // Pass the CanvasOperations service instance only if it actually changed
+      onOperationsChange?.(operations)
+      previousOperationsRef.current = operations
+    }
+  }, [operations, onOperationsChange])
 
   // Handle ownership expiry by clearing selection
   const onOwnershipExpired = useCallback((event: any) => {
@@ -501,6 +503,42 @@ export default function Canvas({
     }
   }, [currentTool, selectObjects, state.selectedObjects, ownership])
 
+  // Store refs for keyboard shortcuts to avoid stale closures without causing re-renders
+  const keyboardShortcutsRef = useRef({
+    deleteObjects,
+    duplicateObjects,
+    selectObjects,
+    ownership,
+    isCreatingRect,
+    setIsCreatingRect,
+    setCreatingRect,
+    setIsDragging,
+    onToolChange,
+    isCreatingEllipse,
+    setIsCreatingEllipse,
+    setCreatingEllipse,
+    selectedObjects: state.selectedObjects,
+  })
+  
+  // Update refs when values change
+  useEffect(() => {
+    keyboardShortcutsRef.current = {
+      deleteObjects,
+      duplicateObjects,
+      selectObjects,
+      ownership,
+      isCreatingRect,
+      setIsCreatingRect,
+      setCreatingRect,
+      setIsDragging,
+      onToolChange,
+      isCreatingEllipse,
+      setIsCreatingEllipse,
+      setCreatingEllipse,
+      selectedObjects: state.selectedObjects,
+    }
+  })
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -509,18 +547,34 @@ export default function Canvas({
         return
       }
 
+      const {
+        deleteObjects,
+        duplicateObjects,
+        selectObjects,
+        ownership,
+        isCreatingRect,
+        setIsCreatingRect,
+        setCreatingRect,
+        setIsDragging,
+        onToolChange,
+        isCreatingEllipse,
+        setIsCreatingEllipse,
+        setCreatingEllipse,
+        selectedObjects,
+      } = keyboardShortcutsRef.current
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         // Delete selected objects
-        if (state.selectedObjects.length > 0) {
+        if (selectedObjects.length > 0) {
           e.preventDefault()
-          deleteObjects(state.selectedObjects)
+          deleteObjects(selectedObjects)
           console.log('⌫ Deleted selected objects')
         }
       } else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
         // Duplicate selected objects (Ctrl/Cmd + D)
-        if (state.selectedObjects.length > 0) {
+        if (selectedObjects.length > 0) {
           e.preventDefault()
-          duplicateObjects(state.selectedObjects)
+          duplicateObjects(selectedObjects)
           console.log('📋 Duplicated selected objects')
         }
       } else if (e.key === 'Escape') {
@@ -552,7 +606,7 @@ export default function Canvas({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, []) // Remove all dependencies to prevent infinite re-renders
+  }, []) // Empty deps - handler uses refs to access current values
 
   // Cleanup stale cursors (remove cursors that haven't been seen for 10 seconds - more lenient for batching)
   useEffect(() => {

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { CanvasObject, CanvasState, CreateObjectPayload, EllipseData } from '@/types/canvas'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import { useRealtime } from './useRealtime'
 import { loadColorFromLocalStorage, saveColorToLocalStorage } from '@/lib/colorUtils'
+import { CanvasOperations } from '@/lib/canvas/CanvasOperations'
 
 export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payload: any) => void, onNewObjectCreated?: (object: any, userId: string, creatorDisplayName?: string) => Promise<void>, onCursorUpdates?: (updates: Array<{userId: string, displayName: string, position: {x: number, y: number}, timestamp: string}>) => void) {
   const { user, profile } = useAuth()
@@ -246,6 +247,16 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     onOwnershipChanged: ownershipHandlerRef.current,
   })
 
+  // Create CanvasOperations service instance (stable - only recreate when user or canvasId changes)
+  // Store realtime ref to avoid recreating operations when realtime state changes
+  const realtimeRef = useRef(realtime)
+  realtimeRef.current = realtime
+  
+  const operations = useMemo(() => {
+    if (!user || !realtimeRef.current) return null
+    return new CanvasOperations(supabase, realtimeRef.current, user, canvasId)
+  }, [user, canvasId])
+
   // Batch updates using setInterval - flushes every 16ms (60fps) for smooth cursor movement
   useEffect(() => {
     const interval = setInterval(() => {
@@ -297,34 +308,22 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
   // Create new rectangle
   const createRectangle = useCallback(async (payload: CreateObjectPayload) => {
-    if (!user) {
-      console.error('❌ User not authenticated')
+    if (!operations) {
+      console.error('❌ CanvasOperations not available')
       return null
     }
 
     try {
       console.log('📦 Creating rectangle:', payload)
-      const objectData = {
-        canvas_id: canvasId,
-        type: 'rectangle' as const,
-        x: payload.x,
-        y: payload.y,
-        width: payload.width,
-        height: payload.height,
+      
+      // Use CanvasOperations service
+      const data = await operations.createRectangle({
+        ...payload,
         color: payload.color || state.currentColor,
-        rotation: payload.rotation || 0,
-        owner: user.id, // Creator automatically owns the object
-        created_by: user.id,
-      }
+      })
 
-      const { data, error } = await supabase
-        .from('canvas_objects')
-        .insert([objectData])
-        .select('*')
-        .single()
-
-      if (error) {
-        console.error('❌ Error creating rectangle:', error)
+      if (!data) {
+        console.error('❌ Failed to create rectangle')
         return null
       }
 
@@ -336,7 +335,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Initialize ownership state FIRST (before adding to canvas state)
       if (onNewObjectCreated) {
         console.log('🏷️ Initializing ownership state for creator:', data.id)
-        await onNewObjectCreated(data, user.id, profile?.display_name)
+        await onNewObjectCreated(data, user!.id, profile?.display_name)
       }
       
       // Add to local state AFTER ownership is initialized (prevents race condition)
@@ -346,46 +345,31 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         selectedObjects: [data.id],
       }))
 
-      // Broadcast to other clients
-      await realtime.broadcastObjectCreated(data)
-
       return data
     } catch (error) {
       console.error('❌ Failed to create rectangle:', error)
       return null
     }
-  }, [user, canvasId, realtime])
+  }, [operations, state.currentColor, onNewObjectCreated, user, profile])
 
   // Create new ellipse
   const createEllipse = useCallback(async (data: EllipseData) => {
-    if (!user) {
-      console.error('❌ User not authenticated')
+    if (!operations) {
+      console.error('❌ CanvasOperations not available')
       return null
     }
 
     try {
       console.log('🔵 Creating ellipse:', data)
-      const objectData = {
-        canvas_id: canvasId,
-        type: 'ellipse' as const,
-        x: data.x,
-        y: data.y,
-        width: data.width,
-        height: data.height,
+      
+      // Use CanvasOperations service
+      const newObject = await operations.createEllipse({
+        ...data,
         color: data.color || state.currentColor,
-        rotation: data.rotation || 0,
-        owner: user.id, // Creator automatically owns the object
-        created_by: user.id,
-      }
+      })
 
-      const { data: newObject, error } = await supabase
-        .from('canvas_objects')
-        .insert([objectData])
-        .select('*')
-        .single()
-
-      if (error) {
-        console.error('❌ Error creating ellipse:', error)
+      if (!newObject) {
+        console.error('❌ Failed to create ellipse')
         return null
       }
 
@@ -397,7 +381,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Initialize ownership state FIRST (before adding to canvas state)
       if (onNewObjectCreated) {
         console.log('🏷️ Initializing ownership state for creator:', newObject.id)
-        await onNewObjectCreated(newObject, user.id, profile?.display_name)
+        await onNewObjectCreated(newObject, user!.id, profile?.display_name)
       }
       
       // Add to local state AFTER ownership is initialized (prevents race condition)
@@ -407,33 +391,31 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         selectedObjects: [newObject.id],
       }))
 
-      // Broadcast to other clients
-      await realtime.broadcastObjectCreated(newObject)
-
       return newObject
     } catch (error) {
       console.error('❌ Failed to create ellipse:', error)
       return null
     }
-  }, [user, canvasId, realtime])
+  }, [operations, state.currentColor, onNewObjectCreated, user, profile])
 
   // Removed broadcastObjectUpdate - we only update on drag end now
 
   // Full update with database persistence (for final updates)
   const updateObject = useCallback(async (id: string, updates: Partial<CanvasObject>) => {
+    if (!operations) {
+      console.error('❌ CanvasOperations not available')
+      return
+    }
+
     try {
       console.log(`📝 Updating object ${id}:`, updates)
       console.log(`📝 Update details - x: ${updates.x}, y: ${updates.y}, width: ${updates.width}, height: ${updates.height}, rotation: ${updates.rotation}`)
       
-      const { data, error } = await supabase
-        .from('canvas_objects')
-        .update(updates)
-        .eq('id', id)
-        .select('*')
-        .single()
+      // Use CanvasOperations service
+      const data = await operations.updateObject(id, updates)
 
-      if (error) {
-        console.error('❌ Error updating object:', error)
+      if (!data) {
+        console.error('❌ Failed to update object')
         return
       }
 
@@ -447,15 +429,10 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         ...prev,
         objects: prev.objects.map(obj => obj.id === id ? data : obj),
       }))
-      
-      // Broadcast to other clients
-      console.log('📡 Broadcasting object update to other clients...')
-      await realtime.broadcastObjectUpdated(data)
-      console.log('📡 Broadcast sent successfully')
     } catch (error) {
       console.error('❌ Failed to update object:', error)
     }
-  }, [realtime])
+  }, [operations])
 
   // Select objects
   const selectObjects = useCallback((objectIds: string[]) => {
@@ -465,18 +442,16 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
 
   // Delete objects
   const deleteObjects = useCallback(async (objectIds: string[]) => {
-    if (!user || objectIds.length === 0) return
+    if (!operations || objectIds.length === 0) return
 
     try {
       console.log('🗑️ Deleting objects:', objectIds)
       
-      const { error } = await supabase
-        .from('canvas_objects')
-        .delete()
-        .in('id', objectIds)
+      // Use CanvasOperations service
+      const success = await operations.deleteObjects(objectIds)
 
-      if (error) {
-        console.error('❌ Error deleting objects:', error)
+      if (!success) {
+        console.error('❌ Failed to delete objects')
         return
       }
 
@@ -493,47 +468,24 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
         objects: prev.objects.filter(obj => !objectIds.includes(obj.id)),
         selectedObjects: [],
       }))
-      
-      // Broadcast to other clients - use batch operation for multiple objects
-      if (objectIds.length === 1) {
-        await realtime.broadcastObjectDeleted(objectIds[0])
-      } else {
-        await realtime.broadcastObjectsDeleted(objectIds)
-      }
     } catch (error) {
       console.error('❌ Failed to delete objects:', error)
       console.error('❌ Full error:', error)
     }
-  }, [user, realtime])
+  }, [operations])
 
   // Duplicate objects
   const duplicateObjects = useCallback(async (objectIds: string[]) => {
-    if (!user || objectIds.length === 0) return
+    if (!operations || objectIds.length === 0) return
 
     try {
       console.log('📋 Duplicating objects:', objectIds)
-      const objectsToDuplicate = state.objects.filter(obj => objectIds.includes(obj.id))
       
-      const duplicatedObjects = objectsToDuplicate.map(obj => ({
-        canvas_id: canvasId,
-        type: obj.type,
-        x: obj.x + 20, // Offset by 20px
-        y: obj.y + 20,
-        width: obj.width,
-        height: obj.height,
-        color: obj.color,
-        rotation: obj.rotation,
-        owner: user.id, // Duplicator automatically owns the new objects
-        created_by: user.id,
-      }))
+      // Use CanvasOperations service
+      const data = await operations.duplicateObjects(objectIds, state.objects)
 
-      const { data, error } = await supabase
-        .from('canvas_objects')
-        .insert(duplicatedObjects)
-        .select('*')
-
-      if (error) {
-        console.error('❌ Error duplicating objects:', error)
+      if (!data || data.length === 0) {
+        console.error('❌ Failed to duplicate objects')
         return
       }
 
@@ -555,16 +507,13 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       if (onNewObjectCreated) {
         console.log('🏷️ Initializing ownership state for duplicated objects:', data.map(obj => obj.id))
         for (const obj of data) {
-          await onNewObjectCreated(obj, user.id, profile?.display_name)
+          await onNewObjectCreated(obj, user!.id, profile?.display_name)
         }
       }
-      
-      // Broadcast to other clients
-      await realtime.broadcastObjectsDuplicated(objectIds, data)
     } catch (error) {
       console.error('❌ Failed to duplicate objects:', error)
     }
-  }, [user, canvasId, state.objects, realtime])
+  }, [operations, state.objects, onNewObjectCreated, user, profile])
 
   // Set tool
   const setTool = useCallback((tool: CanvasState['tool']) => {
@@ -588,39 +537,28 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     setState(prev => ({ ...prev, currentColor: color }))
   }, [])
 
-  // Temporary z-index operations (until CanvasOperations service is integrated)
+  // Z-index operations using CanvasOperations service
   const bringToFront = useCallback(async (objectIds: string | string[]) => {
+    if (!operations) {
+      console.error('❌ CanvasOperations not available')
+      return
+    }
+
     try {
-      // Handle both single object and multiple objects
-      const ids = Array.isArray(objectIds) ? objectIds : [objectIds]
-      console.log('🔝 Bringing objects to front:', ids)
+      console.log('🔝 Bringing objects to front:', objectIds)
       
-      // Fetch current max z_index directly from database to avoid stale state
-      const { data: objects, error: fetchError } = await supabase
-        .from('canvas_objects')
-        .select('z_index')
-        .eq('canvas_id', canvasId)
-        .order('z_index', { ascending: false })
-        .limit(1)
+      // Use CanvasOperations service
+      const result = await operations.bringToFront(objectIds)
       
-      if (fetchError) {
-        console.error('❌ Failed to fetch max z_index:', fetchError)
-        return
-      }
-      
-      const maxZIndex = objects && objects.length > 0 ? (objects[0].z_index || 0) : 0
-      console.log('📊 Current max z_index:', maxZIndex)
-      
-      // Assign sequential z_index values starting from maxZIndex + 1
-      for (let i = 0; i < ids.length; i++) {
-        const newZIndex = maxZIndex + 1 + i
-        await updateObject(ids[i], { z_index: newZIndex })
-        console.log(`✅ Object ${ids[i]} brought to front with z_index: ${newZIndex}`)
+      if (result) {
+        console.log('✅ Objects brought to front successfully')
+      } else {
+        console.error('❌ Failed to bring objects to front')
       }
     } catch (error) {
       console.error('❌ Failed to bring objects to front:', error)
     }
-  }, [canvasId, updateObject])
+  }, [operations])
 
   // Load objects on mount
   useEffect(() => {
@@ -638,8 +576,10 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     setTool,
     setColor,
     loadObjects,
-    // Temporary z-index operations
+    // Z-index operations using CanvasOperations service
     bringToFront,
+    // CanvasOperations service instance
+    operations,
     // Realtime state and methods
     realtime,
   }
