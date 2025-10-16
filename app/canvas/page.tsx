@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
@@ -24,6 +24,17 @@ export default function CanvasPage() {
   const router = useRouter()
   const [currentTool, setCurrentTool] = useState<CanvasState['tool']>('select')
   const [currentColor, setCurrentColor] = useState(loadColorFromLocalStorage())
+  const [selectedObjects, setSelectedObjects] = useState<string[]>([])
+  const [operations, setOperations] = useState<any>(null) // Will be set by Canvas component
+
+  // Stable callbacks to prevent infinite re-renders
+  const handleSelectedObjectsChange = useCallback((objects: string[]) => {
+    setSelectedObjects(objects)
+  }, [])
+
+  const handleOperationsChange = useCallback((ops: any) => {
+    setOperations(ops)
+  }, [])
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -71,6 +82,8 @@ export default function CanvasPage() {
         <Toolbar 
           currentTool={currentTool}
           currentColor={currentColor}
+          selectedObjects={selectedObjects}
+          operations={operations}
           onToolChange={setCurrentTool}
           onColorChange={setCurrentColor}
         />
@@ -82,6 +95,8 @@ export default function CanvasPage() {
             currentTool={currentTool}
             currentColor={currentColor}
             onToolChange={setCurrentTool}
+            onSelectedObjectsChange={handleSelectedObjectsChange}
+            onOperationsChange={handleOperationsChange}
           />
         </main>
       </div>

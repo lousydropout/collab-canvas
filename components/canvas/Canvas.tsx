@@ -19,9 +19,18 @@ interface CanvasProps {
   currentTool: CanvasState['tool']
   currentColor: string
   onToolChange: (tool: CanvasState['tool']) => void
+  onSelectedObjectsChange?: (objects: string[]) => void
+  onOperationsChange?: (operations: any) => void
 }
 
-export default function Canvas({ className = '', currentTool, currentColor, onToolChange }: CanvasProps) {
+export default function Canvas({ 
+  className = '', 
+  currentTool, 
+  currentColor, 
+  onToolChange,
+  onSelectedObjectsChange,
+  onOperationsChange
+}: CanvasProps) {
   const { user } = useAuth()
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 })
@@ -125,7 +134,20 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     }
   }, [ownership, user?.id])
 
-  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime, bringToFront } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+
+  // Notify parent component when selected objects change
+  useEffect(() => {
+    onSelectedObjectsChange?.(state.selectedObjects)
+  }, [state.selectedObjects, onSelectedObjectsChange])
+
+  // Notify parent component when operations service is available
+  useEffect(() => {
+    // Pass temporary z-index operations until CanvasOperations service is integrated
+    onOperationsChange?.({
+      bringToFront
+    })
+  }, [onOperationsChange]) // Remove bringToFront dependency
 
   // Handle ownership expiry by clearing selection
   const onOwnershipExpired = useCallback((event: any) => {
@@ -530,7 +552,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [state.selectedObjects, deleteObjects, duplicateObjects, selectObjects, ownership, isCreatingRect, isCreatingEllipse, onToolChange])
+  }, []) // Remove all dependencies to prevent infinite re-renders
 
   // Cleanup stale cursors (remove cursors that haven't been seen for 10 seconds - more lenient for batching)
   useEffect(() => {
@@ -725,6 +747,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               height: previewRect.height,
               color: state.currentColor,
               rotation: 0,
+              z_index: 999999, // High z-index for preview objects
               owner: 'all',
               created_by: null,
               created_at: '',
@@ -747,6 +770,7 @@ export default function Canvas({ className = '', currentTool, currentColor, onTo
               height: previewEllipse.height,
               color: state.currentColor,
               rotation: 0,
+              z_index: 999999, // High z-index for preview objects
               owner: 'all',
               created_by: null,
               created_at: '',

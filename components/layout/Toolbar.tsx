@@ -5,15 +5,26 @@ import { Button } from '@/components/ui/button'
 import { MousePointer2, Square, Circle, Type } from 'lucide-react'
 import { HexColorPicker } from 'react-colorful'
 import { CanvasState } from '@/types/canvas'
+import ZIndexControls from './ZIndexControls'
+import { CanvasOperations } from '@/lib/canvas/CanvasOperations'
 
 interface ToolbarProps {
   currentTool: CanvasState['tool']
   currentColor: string
+  selectedObjects: string[]
+  operations: CanvasOperations | null
   onToolChange: (tool: CanvasState['tool']) => void
   onColorChange: (color: string) => void
 }
 
-export default function Toolbar({ currentTool, currentColor, onToolChange, onColorChange }: ToolbarProps) {
+export default function Toolbar({ 
+  currentTool, 
+  currentColor, 
+  selectedObjects,
+  operations,
+  onToolChange, 
+  onColorChange 
+}: ToolbarProps) {
   const [showColorPicker, setShowColorPicker] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -86,6 +97,19 @@ export default function Toolbar({ currentTool, currentColor, onToolChange, onCol
         >
           <Type className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* Z-Index Controls Section */}
+      <div className="mt-6">
+        <ZIndexControls
+          selectedObjects={selectedObjects}
+          operations={operations}
+          canvasOperations={operations}
+          onOperationComplete={() => {
+            // Optional: Add any post-operation logic here
+            console.log('Z-index operation completed')
+          }}
+        />
       </div>
 
       {/* Color Picker Section - Pushed to Bottom */}

@@ -588,6 +588,40 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     setState(prev => ({ ...prev, currentColor: color }))
   }, [])
 
+  // Temporary z-index operations (until CanvasOperations service is integrated)
+  const bringToFront = useCallback(async (objectIds: string | string[]) => {
+    try {
+      // Handle both single object and multiple objects
+      const ids = Array.isArray(objectIds) ? objectIds : [objectIds]
+      console.log('🔝 Bringing objects to front:', ids)
+      
+      // Fetch current max z_index directly from database to avoid stale state
+      const { data: objects, error: fetchError } = await supabase
+        .from('canvas_objects')
+        .select('z_index')
+        .eq('canvas_id', canvasId)
+        .order('z_index', { ascending: false })
+        .limit(1)
+      
+      if (fetchError) {
+        console.error('❌ Failed to fetch max z_index:', fetchError)
+        return
+      }
+      
+      const maxZIndex = objects && objects.length > 0 ? (objects[0].z_index || 0) : 0
+      console.log('📊 Current max z_index:', maxZIndex)
+      
+      // Assign sequential z_index values starting from maxZIndex + 1
+      for (let i = 0; i < ids.length; i++) {
+        const newZIndex = maxZIndex + 1 + i
+        await updateObject(ids[i], { z_index: newZIndex })
+        console.log(`✅ Object ${ids[i]} brought to front with z_index: ${newZIndex}`)
+      }
+    } catch (error) {
+      console.error('❌ Failed to bring objects to front:', error)
+    }
+  }, [canvasId, updateObject])
+
   // Load objects on mount
   useEffect(() => {
     loadObjects()
@@ -604,6 +638,8 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     setTool,
     setColor,
     loadObjects,
+    // Temporary z-index operations
+    bringToFront,
     // Realtime state and methods
     realtime,
   }
