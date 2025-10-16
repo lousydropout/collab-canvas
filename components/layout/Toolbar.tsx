@@ -104,7 +104,6 @@ export default function Toolbar({
         <ZIndexControls
           selectedObjects={selectedObjects}
           operations={operations}
-          canvasOperations={operations}
           onOperationComplete={() => {
             // Optional: Add any post-operation logic here
             console.log('Z-index operation completed')

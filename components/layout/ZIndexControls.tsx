@@ -28,10 +28,6 @@ interface ZIndexControlsProps {
   disabled?: boolean
   /** Callback when z-index operation completes */
   onOperationComplete?: () => void
-  /** Temporary: Canvas operations from useCanvas hook */
-  canvasOperations?: {
-    bringToFront?: (id: string | string[]) => Promise<any>
-  } | null
 }
 
 /**
@@ -44,8 +40,7 @@ export default function ZIndexControls({
   selectedObjects, 
   operations, 
   disabled = false,
-  onOperationComplete,
-  canvasOperations
+  onOperationComplete
 }: ZIndexControlsProps) {
   
   /**
@@ -60,17 +55,13 @@ export default function ZIndexControls({
     try {
       console.log('🔝 Bringing objects to front:', selectedObjects)
       
-      // Use CanvasOperations service if available, otherwise use temporary operations
-      if (operations) {
-        // Pass all selected objects at once
-        await operations.bringToFront(selectedObjects)
-      } else if (canvasOperations?.bringToFront) {
-        // Pass all selected objects at once
-        await canvasOperations.bringToFront(selectedObjects)
-      } else {
-        console.warn('⚠️ No z-index operations available')
+      if (!operations) {
+        console.warn('⚠️ CanvasOperations service not available')
         return
       }
+      
+      // Use CanvasOperations service
+      await operations.bringToFront(selectedObjects)
       
       console.log('✅ All objects brought to front')
       onOperationComplete?.()
@@ -80,7 +71,7 @@ export default function ZIndexControls({
   }
 
   // Determine if controls should be enabled
-  const isEnabled = !disabled && selectedObjects.length > 0 && (operations || canvasOperations)
+  const isEnabled = !disabled && selectedObjects.length > 0 && operations
 
   return (
     <div className="flex flex-col items-center space-y-2">
