@@ -120,7 +120,7 @@ export default function Rectangle({
   //   // Real-time updates removed for simplicity
   // }, [])
 
-  const handleDragStart = (e: any) => {
+  const handleDragStart = async (e: any) => {
     // Aggressively stop all event propagation
     e.cancelBubble = true
     if (e.stopPropagation) e.stopPropagation()
@@ -133,12 +133,32 @@ export default function Rectangle({
       e.evt.cancelBubble = true
     }
     
-    // Since draggable is only true when claimed_by_me, we can assume ownership is valid
-    console.log(`🏷️ Starting drag for object ${object.id} (already claimed by me)`)
-    
-    // Ensure rectangle is selected when starting to drag
-    if (!isSelected) {
-      onSelect?.(object.id, e)
+    try {
+      // If object is available, claim it first
+      if (ownershipStatus === 'available' && onClaimAttempt) {
+        console.log(`🏷️ Attempting to claim object ${object.id} before drag`)
+        const claimSucceeded = await onClaimAttempt(object.id)
+        
+        if (!claimSucceeded) {
+          console.log(`❌ Claim failed, cancelling drag for object ${object.id}`)
+          // Cancel the drag by stopping the event
+          e.target.stopDrag()
+          return
+        }
+        
+        console.log(`✅ Claim succeeded, proceeding with drag for object ${object.id}`)
+      }
+      
+      console.log(`🏷️ Starting drag for object ${object.id}`)
+      
+      // Ensure rectangle is selected when starting to drag
+      if (!isSelected) {
+        onSelect?.(object.id, e)
+      }
+    } catch (error) {
+      console.error(`❌ Error in drag start for object ${object.id}:`, error)
+      // Cancel the drag on any error
+      e.target.stopDrag()
     }
   }
 
@@ -182,7 +202,7 @@ export default function Rectangle({
         height={object.height}
         fill={object.color}
         rotation={object.rotation}
-        draggable={canInteract && !isPendingClaim && ownershipStatus === 'claimed_by_me'}
+        draggable={canInteract && !isPendingClaim && (ownershipStatus === 'claimed_by_me' || ownershipStatus === 'available')}
         onClick={handleClick}
         onTap={handleClick}
         onDragStart={handleDragStart}

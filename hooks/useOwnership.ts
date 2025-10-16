@@ -303,17 +303,11 @@ export function useOwnership({
       console.log(`✅ Database update successful for object ${objectId}:`, data[0])
       console.log(`📡 Ownership change should now be broadcasted to other users`)
 
-      // Clear local state
-      setOwnershipState(prev => ({
-        ...prev,
-        [objectId]: {
-          owner_id: null,
-          owner_name: null,
-          claimed_at: null,
-          expires_at: null,
-          is_claimed_by_me: false,
-        }
-      }))
+      // Remove from local state completely
+      setOwnershipState(prev => {
+        const { [objectId]: removed, ...rest } = prev
+        return rest
+      })
 
       // Clear cleanup timer
       const timerId = cleanupTimersRef.current.get(objectId)
@@ -477,17 +471,11 @@ export function useOwnership({
       console.log('📥 Ownership change via realtime:', objectId, `${oldOwner} → ${newOwner}`)
       
       if (newOwner === 'all') {
-        // Object was released
-        setOwnershipState(prev => ({
-          ...prev,
-          [objectId]: {
-            owner_id: null,
-            owner_name: null,
-            claimed_at: null,
-            expires_at: null,
-            is_claimed_by_me: false,
-          }
-        }))
+        // Object was released - remove from state completely
+        setOwnershipState(prev => {
+          const { [objectId]: removed, ...rest } = prev
+          return rest
+        })
       } else if (newOwner === user?.id && user) {
         // Object was claimed by me (or I created it)
         setOwnershipState(prev => ({
