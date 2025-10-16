@@ -12,11 +12,12 @@ CollabCanvas is a real-time collaborative canvas application where multiple user
 ## Key Features
 1. **User Authentication** - Email/password with Supabase
 2. **Canvas Workspace** - 5000x5000px with pan/zoom (10%-500%)
-3. **Rectangle Objects** - Create, move, resize, delete with Konva.js
+3. **Shape Objects** - Create, move, resize, delete rectangles and ellipses with Konva.js
 4. **Object Ownership** - Claim/release system to prevent conflicts
 5. **Real-time Sync** - Supabase Realtime for live collaboration
 6. **Multiplayer Cursors** - Live cursor tracking with user names
 7. **Presence Awareness** - Show online users and status
+8. **Performance Optimization** - Batched updates and presence deduplication
 
 ## Technical Stack
 - **Frontend:** Next.js 15 (App Router), TailwindCSS, shadcn/ui
@@ -35,17 +36,20 @@ CollabCanvas is a real-time collaborative canvas application where multiple user
 - ✅ Public deployment accessible
 
 ## Current Status
-The project is in active development with core features implemented:
+The project is complete with all MVP requirements met and additional improvements implemented:
 - Authentication system ✅
 - Basic canvas with pan/zoom ✅
-- Rectangle creation and manipulation ✅
+- Shape creation and manipulation (rectangles and ellipses) ✅
 - Real-time synchronization ✅
 - Ownership system ✅
 - Multiplayer cursors ✅
 - Presence tracking ✅
+- Performance optimizations ✅
+- Comprehensive documentation ✅
 
-## Next Steps
-- User list UI and presence awareness
-- Periodic delta sync for state consistency
-- Performance optimization and testing
-- UI/UX polish and final testing
+## Recent Improvements
+- Ellipse support added alongside rectangles
+- Batching system for smooth multi-user collaboration
+- Presence consistency fixes
+- Enhanced testing guides
+- Updated documentation reflecting current status
