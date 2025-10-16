@@ -169,5 +169,5 @@ export interface CreateObjectPayload {
  * - Higher z_index values appear on top
  * - Each canvas maintains unique z_index values per object
  * - New objects get z_index = max_existing + 1
- * - Z-index operations: bringToFront, sendToBack, bringForward, sendBackward
+ * - Z-index operations: bringToFront, sendToBack
  */

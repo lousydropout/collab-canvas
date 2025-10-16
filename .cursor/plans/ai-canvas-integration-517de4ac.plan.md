@@ -30,7 +30,6 @@ constructor(
   private supabase: SupabaseClient,
   private realtime: RealtimeService, 
   private user: User,
-  private profile: Profile | null,
   private canvasId: string
 )
 ```
