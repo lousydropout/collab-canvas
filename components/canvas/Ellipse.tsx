@@ -192,16 +192,17 @@ export default function Ellipse({
         cursor={canInteract ? 'pointer' : 'not-allowed'}
       />
       
-      {/* Owner label for objects owned by others - use ellipse background */}
+      {/* Owner label for objects owned by others */}
       {showOwnerLabel && ownerInfo?.owner_name && (
         <>
-          {/* Background for text - ellipse to match object shape */}
-          <KonvaEllipse
-            x={object.x + Math.max(80, ownerInfo.owner_name.length * 7 + 16) / 2}
-            y={object.y - 15}
-            radiusX={Math.max(80, ownerInfo.owner_name.length * 7 + 16) / 2}
-            radiusY={10}
+          {/* Background for text */}
+          <Rect
+            x={object.x}
+            y={object.y - 25}
+            width={Math.max(80, ownerInfo.owner_name.length * 7 + 16)}
+            height={20}
             fill="rgba(239, 68, 68, 0.9)"
+            cornerRadius={4}
             listening={false}
           />
           {/* Owner name text */}
