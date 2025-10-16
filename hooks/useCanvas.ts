@@ -333,18 +333,18 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Track this as a local operation to prevent loop when we receive our own DB change
       localOperationsRef.current.add(data.id)
       
-      // Add to local state immediately (optimistic update)
+      // Initialize ownership state FIRST (before adding to canvas state)
+      if (onNewObjectCreated) {
+        console.log('🏷️ Initializing ownership state for creator:', data.id)
+        await onNewObjectCreated(data, user.id, profile?.display_name)
+      }
+      
+      // Add to local state AFTER ownership is initialized (prevents race condition)
       setState(prev => ({
         ...prev,
         objects: [...prev.objects, data],
         selectedObjects: [data.id],
       }))
-
-      // Initialize ownership state for the creator (since we skip broadcast handling for our own objects)
-      if (onNewObjectCreated) {
-        console.log('🏷️ Initializing ownership state for creator:', data.id)
-        await onNewObjectCreated(data, user.id, profile?.display_name)
-      }
 
       // Broadcast to other clients
       await realtime.broadcastObjectCreated(data)
@@ -394,18 +394,18 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
       // Track this as a local operation to prevent loop when we receive our own DB change
       localOperationsRef.current.add(newObject.id)
       
-      // Add to local state immediately (optimistic update)
+      // Initialize ownership state FIRST (before adding to canvas state)
+      if (onNewObjectCreated) {
+        console.log('🏷️ Initializing ownership state for creator:', newObject.id)
+        await onNewObjectCreated(newObject, user.id, profile?.display_name)
+      }
+      
+      // Add to local state AFTER ownership is initialized (prevents race condition)
       setState(prev => ({
         ...prev,
         objects: [...prev.objects, newObject],
         selectedObjects: [newObject.id],
       }))
-
-      // Initialize ownership state for the creator (since we skip broadcast handling for our own objects)
-      if (onNewObjectCreated) {
-        console.log('🏷️ Initializing ownership state for creator:', newObject.id)
-        await onNewObjectCreated(newObject, user.id, profile?.display_name)
-      }
 
       // Broadcast to other clients
       await realtime.broadcastObjectCreated(newObject)
