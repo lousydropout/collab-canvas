@@ -1,30 +1,118 @@
+/**
+ * Canvas Operations Service
+ * 
+ * This service class provides a clean abstraction layer for all canvas operations,
+ * including object creation, manipulation, and z-index management. It separates
+ * business logic from UI components and enables easy testing and AI integration.
+ * 
+ * Key Features:
+ * - Object CRUD operations (Create, Read, Update, Delete)
+ * - Z-index layering system (bringToFront, sendToBack)
+ * - Real-time synchronization via Supabase
+ * - Ownership management and conflict prevention
+ * - Batch operations for efficiency
+ * 
+ * Architecture:
+ * - Service layer pattern with dependency injection
+ * - Database operations via Supabase client
+ * - Real-time updates via RealtimeService interface
+ * - Type-safe operations with full TypeScript support
+ */
+
 import { SupabaseClient } from '@supabase/supabase-js'
 import { CanvasObject, CreateObjectPayload, EllipseData } from '@/types/canvas'
 import { User } from '@supabase/supabase-js'
-import { Database } from '@/lib/supabase/client'
 
-// Realtime service interface - we'll define this based on useRealtime hook
+/**
+ * Interface for real-time synchronization service
+ * 
+ * This interface abstracts the real-time communication layer,
+ * allowing the service to broadcast changes to other clients.
+ */
 export interface RealtimeService {
+  /** Broadcast object creation to other clients */
   broadcastObjectCreated: (object: CanvasObject) => Promise<void>
+  /** Broadcast object updates to other clients */
   broadcastObjectUpdated: (object: CanvasObject) => Promise<void>
+  /** Broadcast object deletion to other clients */
   broadcastObjectDeleted: (objectId: string) => Promise<void>
+  /** Broadcast multiple object deletions to other clients */
   broadcastObjectsDeleted: (objectIds: string[]) => Promise<void>
+  /** Broadcast object duplication to other clients */
   broadcastObjectsDuplicated: (originalIds: string[], newObjects: CanvasObject[]) => Promise<void>
 }
 
-// Profile type from database
-type Profile = Database['public']['Tables']['profiles']['Row']
-
+/**
+ * Canvas Operations Service Class
+ * 
+ * Provides centralized operations for canvas object management.
+ * All operations are type-safe and include proper error handling.
+ */
 export class CanvasOperations {
   constructor(
     private supabase: SupabaseClient,
     private realtime: RealtimeService,
     private user: User,
-    private profile: Profile | null,
     private canvasId: string
   ) {}
 
-  // Create new rectangle
+  /**
+   * Get user display name for UI purposes
+   * 
+   * @returns Promise<string> Display name or fallback to email
+   */
+  private async getDisplayName(): Promise<string> {
+    try {
+      const { data } = await this.supabase
+        .from('profiles')
+        .select('display_name')
+        .eq('id', this.user.id)
+        .single()
+      
+      return data?.display_name || this.user.email || 'Anonymous'
+    } catch {
+      return this.user.email || 'Anonymous'
+    }
+  }
+
+  /**
+   * Get the next available z-index for new objects
+   * 
+   * @returns Promise<number> The next z-index value (highest existing + 1)
+   */
+  private async getNextZIndex(): Promise<number> {
+    try {
+      const { data, error } = await this.supabase
+        .from('canvas_objects')
+        .select('z_index')
+        .eq('canvas_id', this.canvasId)
+        .order('z_index', { ascending: false })
+        .limit(1)
+
+      if (error) {
+        console.error('❌ Error getting next z-index:', error)
+        return 1 // Fallback to 1 if query fails
+      }
+
+      // If no objects exist, start with z-index 1
+      if (!data || data.length === 0) {
+        return 1
+      }
+
+      // Return highest z-index + 1
+      return (data[0].z_index || 0) + 1
+    } catch (error) {
+      console.error('❌ Failed to get next z-index:', error)
+      return 1
+    }
+  }
+
+  /**
+   * Create a new rectangle on the canvas
+   * 
+   * @param data - Rectangle creation data
+   * @returns Promise<CanvasObject | null> The created rectangle or null if failed
+   */
   async createRectangle(data: CreateObjectPayload): Promise<CanvasObject | null> {
     if (!this.user) {
       console.error('❌ User not authenticated')
@@ -33,6 +121,10 @@ export class CanvasOperations {
 
     try {
       console.log('📦 Creating rectangle:', data)
+      
+      // Get next z-index if not provided
+      const zIndex = data.z_index || await this.getNextZIndex()
+      
       const objectData = {
         canvas_id: this.canvasId,
         type: 'rectangle' as const,
@@ -42,6 +134,7 @@ export class CanvasOperations {
         height: data.height,
         color: data.color || '#000000',
         rotation: data.rotation || 0,
+        z_index: zIndex,
         owner: this.user.id, // Creator automatically owns the object
         created_by: this.user.id,
       }
@@ -69,7 +162,12 @@ export class CanvasOperations {
     }
   }
 
-  // Create new ellipse
+  /**
+   * Create a new ellipse on the canvas
+   * 
+   * @param data - Ellipse creation data
+   * @returns Promise<CanvasObject | null> The created ellipse or null if failed
+   */
   async createEllipse(data: EllipseData): Promise<CanvasObject | null> {
     if (!this.user) {
       console.error('❌ User not authenticated')
@@ -78,6 +176,10 @@ export class CanvasOperations {
 
     try {
       console.log('🔵 Creating ellipse:', data)
+      
+      // Get next z-index if not provided
+      const zIndex = data.z_index || await this.getNextZIndex()
+      
       const objectData = {
         canvas_id: this.canvasId,
         type: 'ellipse' as const,
@@ -87,6 +189,7 @@ export class CanvasOperations {
         height: data.height,
         color: data.color || '#000000',
         rotation: data.rotation || 0,
+        z_index: zIndex,
         owner: this.user.id, // Creator automatically owns the object
         created_by: this.user.id,
       }
@@ -114,7 +217,13 @@ export class CanvasOperations {
     }
   }
 
-  // Update object properties
+  /**
+   * Update object properties
+   * 
+   * @param id - Object ID to update
+   * @param updates - Partial object data to update
+   * @returns Promise<CanvasObject | null> Updated object or null if failed
+   */
   async updateObject(id: string, updates: Partial<CanvasObject>): Promise<CanvasObject | null> {
     try {
       console.log(`📝 Updating object ${id}:`, updates)
@@ -143,7 +252,12 @@ export class CanvasOperations {
     }
   }
 
-  // Delete objects
+  /**
+   * Delete one or more objects
+   * 
+   * @param objectIds - Array of object IDs to delete
+   * @returns Promise<boolean> True if successful, false otherwise
+   */
   async deleteObjects(objectIds: string[]): Promise<boolean> {
     if (!this.user || objectIds.length === 0) return false
 
@@ -176,13 +290,22 @@ export class CanvasOperations {
     }
   }
 
-  // Duplicate objects
+  /**
+   * Duplicate selected objects with offset positioning
+   * 
+   * @param objectIds - Array of object IDs to duplicate
+   * @param existingObjects - Current objects array for reference
+   * @returns Promise<CanvasObject[]> Array of duplicated objects
+   */
   async duplicateObjects(objectIds: string[], existingObjects: CanvasObject[]): Promise<CanvasObject[]> {
     if (!this.user || objectIds.length === 0) return []
 
     try {
       console.log('📋 Duplicating objects:', objectIds)
       const objectsToDuplicate = existingObjects.filter(obj => objectIds.includes(obj.id))
+      
+      // Get next z-index for all duplicated objects
+      let nextZIndex = await this.getNextZIndex()
       
       const duplicatedObjects = objectsToDuplicate.map(obj => ({
         canvas_id: this.canvasId,
@@ -193,6 +316,7 @@ export class CanvasOperations {
         height: obj.height,
         color: obj.color,
         rotation: obj.rotation,
+        z_index: nextZIndex++, // Assign sequential z-index values
         owner: this.user.id, // Duplicator automatically owns the new objects
         created_by: this.user.id,
       }))
@@ -219,7 +343,14 @@ export class CanvasOperations {
     }
   }
 
-  // Move object by delta
+  /**
+   * Move object by delta coordinates
+   * 
+   * @param id - Object ID to move
+   * @param deltaX - X-axis movement in pixels
+   * @param deltaY - Y-axis movement in pixels
+   * @returns Promise<CanvasObject | null> Updated object or null if failed
+   */
   async moveObject(id: string, deltaX: number, deltaY: number): Promise<CanvasObject | null> {
     const object = await this.getObject(id)
     if (!object) {
@@ -233,7 +364,12 @@ export class CanvasOperations {
     })
   }
 
-  // Get single object by ID
+  /**
+   * Get single object by ID
+   * 
+   * @param id - Object ID to retrieve
+   * @returns Promise<CanvasObject | null> Object or null if not found
+   */
   async getObject(id: string): Promise<CanvasObject | null> {
     try {
       const { data, error } = await this.supabase
@@ -255,14 +391,19 @@ export class CanvasOperations {
     }
   }
 
-  // Get all objects on canvas
+  /**
+   * Get all objects on canvas ordered by z-index
+   * 
+   * @returns Promise<CanvasObject[]> Array of all objects ordered by z-index (ascending)
+   */
   async getAllObjects(): Promise<CanvasObject[]> {
     try {
       const { data, error } = await this.supabase
         .from('canvas_objects')
         .select('*')
         .eq('canvas_id', this.canvasId)
-        .order('created_at', { ascending: true })
+        .order('z_index', { ascending: true })
+        .order('created_at', { ascending: true }) // Tiebreaker for same z-index
 
       if (error) {
         console.error('❌ Error loading objects:', error)
@@ -276,7 +417,13 @@ export class CanvasOperations {
     }
   }
 
-  // Create random object
+  /**
+   * Create a random object with random properties
+   * 
+   * @param canvasWidth - Canvas width for random positioning
+   * @param canvasHeight - Canvas height for random positioning
+   * @returns Promise<CanvasObject | null> Created random object or null if failed
+   */
   async createRandomObject(canvasWidth: number, canvasHeight: number): Promise<CanvasObject | null> {
     const types = ['rectangle', 'ellipse']
     const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff']
@@ -305,6 +452,92 @@ export class CanvasOperations {
         height: randomHeight,
         color: randomColor
       })
+    }
+  }
+
+  // ==================== Z-INDEX OPERATIONS ====================
+
+  /**
+   * Bring object to the front (highest z-index)
+   * 
+   * @param id - Object ID to bring to front
+   * @returns Promise<CanvasObject | null> Updated object or null if failed
+   */
+  async bringToFront(id: string): Promise<CanvasObject | null> {
+    try {
+      const nextZIndex = await this.getNextZIndex()
+      console.log(`🔝 Bringing object ${id} to front with z-index ${nextZIndex}`)
+      
+      return this.updateObject(id, { z_index: nextZIndex })
+    } catch (error) {
+      console.error('❌ Failed to bring object to front:', error)
+      return null
+    }
+  }
+
+  /**
+   * Send object to the back (lowest z-index)
+   * 
+   * @param id - Object ID to send to back
+   * @returns Promise<CanvasObject | null> Updated object or null if failed
+   */
+  async sendToBack(id: string): Promise<CanvasObject | null> {
+    try {
+      // Get the lowest z-index and subtract 1
+      const { data, error } = await this.supabase
+        .from('canvas_objects')
+        .select('z_index')
+        .eq('canvas_id', this.canvasId)
+        .order('z_index', { ascending: true })
+        .limit(1)
+
+      if (error) {
+        console.error('❌ Error getting lowest z-index:', error)
+        return null
+      }
+
+      const lowestZIndex = data && data.length > 0 ? data[0].z_index : 1
+      const newZIndex = Math.max(1, lowestZIndex - 1)
+      
+      console.log(`🔻 Sending object ${id} to back with z-index ${newZIndex}`)
+      
+      return this.updateObject(id, { z_index: newZIndex })
+    } catch (error) {
+      console.error('❌ Failed to send object to back:', error)
+      return null
+    }
+  }
+
+  /**
+   * Get z-index statistics for debugging
+   * 
+   * @returns Promise<{min: number, max: number, count: number}> Z-index statistics
+   */
+  async getZIndexStats(): Promise<{min: number, max: number, count: number}> {
+    try {
+      const { data, error } = await this.supabase
+        .from('canvas_objects')
+        .select('z_index')
+        .eq('canvas_id', this.canvasId)
+
+      if (error) {
+        console.error('❌ Error getting z-index stats:', error)
+        return { min: 0, max: 0, count: 0 }
+      }
+
+      if (!data || data.length === 0) {
+        return { min: 0, max: 0, count: 0 }
+      }
+
+      const zIndexes = data.map(obj => obj.z_index).filter(z => z !== null)
+      const min = Math.min(...zIndexes)
+      const max = Math.max(...zIndexes)
+      const count = zIndexes.length
+
+      return { min, max, count }
+    } catch (error) {
+      console.error('❌ Failed to get z-index stats:', error)
+      return { min: 0, max: 0, count: 0 }
     }
   }
 }
