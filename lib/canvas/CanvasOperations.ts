@@ -227,6 +227,7 @@ export class CanvasOperations {
   async updateObject(id: string, updates: Partial<CanvasObject>): Promise<CanvasObject | null> {
     try {
       console.log(`📝 Updating object ${id}:`, updates)
+      console.log(`📝 Updates data types:`, Object.entries(updates).map(([key, value]) => `${key}: ${typeof value} = ${value}`))
       
       const { data, error } = await this.supabase
         .from('canvas_objects')
@@ -237,6 +238,8 @@ export class CanvasOperations {
 
       if (error) {
         console.error('❌ Error updating object:', error)
+        console.error('❌ Error details:', JSON.stringify(error, null, 2))
+        console.error('❌ Updates that caused error:', JSON.stringify(updates, null, 2))
         return null
       }
 
@@ -248,6 +251,7 @@ export class CanvasOperations {
       return data
     } catch (error) {
       console.error('❌ Failed to update object:', error)
+      console.error('❌ Exception details:', JSON.stringify(error, null, 2))
       return null
     }
   }
