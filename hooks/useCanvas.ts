@@ -560,6 +560,21 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     }
   }, [operations])
 
+  // Add object to local state (for AI-created objects)
+  const addObjectToState = useCallback((object: CanvasObject) => {
+    console.log('🎨 Adding object to local state:', object.id)
+    
+    // Track this as a local operation to prevent loop when we receive our own DB change
+    localOperationsRef.current.add(object.id)
+    
+    // Add to local state
+    setState(prev => ({
+      ...prev,
+      objects: [...prev.objects, object],
+      selectedObjects: [object.id],
+    }))
+  }, [])
+
   // Load objects on mount
   useEffect(() => {
     loadObjects()
@@ -576,6 +591,7 @@ export function useCanvas(canvasId: string = 'default', ownershipHandler?: (payl
     setTool,
     setColor,
     loadObjects,
+    addObjectToState,
     // Z-index operations using CanvasOperations service
     bringToFront,
     // CanvasOperations service instance

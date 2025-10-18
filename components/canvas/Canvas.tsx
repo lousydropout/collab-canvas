@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import CanvasStage from './CanvasStage'
 import Grid from './Grid'
 import Rectangle from './Rectangle'
@@ -9,10 +9,14 @@ import KonvaTransformer from './Transformer'
 import Cursor from './Cursor'
 import CursorPositionDisplay from './CursorPositionDisplay'
 import { UserListModal } from './UserListModal'
+import AIChat from '../ai/AIChat'
+import AIToggleButton from '../ai/AIToggleButton'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useOwnership } from '@/hooks/useOwnership'
 import { useAuth } from '@/hooks/useAuth'
 import { CanvasState } from '@/types/canvas'
+import { CanvasOperations } from '@/lib/canvas/CanvasOperations'
+import { supabase } from '@/lib/supabase/client'
 
 interface CanvasProps {
   className?: string
@@ -45,6 +49,10 @@ export default function Canvas({
   const [isDragging, setIsDragging] = useState(false)
   const [isUserListModalOpen, setIsUserListModalOpen] = useState(false)
   const [currentCursorPosition, setCurrentCursorPosition] = useState<{ x: number; y: number } | null>(null)
+  
+  // AI Chat state
+  const [isAIChatVisible, setIsAIChatVisible] = useState(false)
+  const [isAIChatMinimized, setIsAIChatMinimized] = useState(false)
 
   // Other users' cursor positions
   const [otherCursors, setOtherCursors] = useState<Map<string, {
@@ -134,22 +142,27 @@ export default function Canvas({
     }
   }, [ownership, user?.id])
 
-  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime, operations } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+  const { state, createRectangle, createEllipse, updateObject, deleteObjects, duplicateObjects, selectObjects, setTool, setColor, realtime, operations, addObjectToState } = useCanvas('default', ownershipHandler, ownership.handleNewObjectCreated, handleCursorUpdates)
+
+  // Create state updater for AI
+  const stateUpdater = useMemo(() => ({
+    addObject: (object: any) => {
+      console.log('🎨 State updater adding object to local state:', object.id)
+      addObjectToState(object)
+    },
+    initializeOwnership: async (object: any, userId: string, displayName?: string) => {
+      console.log('🏷️ State updater initializing ownership:', object.id)
+      if (ownership.handleNewObjectCreated) {
+        await ownership.handleNewObjectCreated(object, userId, displayName)
+      }
+    }
+  }), [ownership, addObjectToState])
 
   // Notify parent component when selected objects change
   useEffect(() => {
     onSelectedObjectsChange?.(state.selectedObjects)
   }, [state.selectedObjects, onSelectedObjectsChange])
 
-  // Notify parent component when operations service changes (using ref to prevent infinite loops)
-  const previousOperationsRef = useRef<any>(null)
-  useEffect(() => {
-    if (operations !== previousOperationsRef.current) {
-      // Pass the CanvasOperations service instance only if it actually changed
-      onOperationsChange?.(operations)
-      previousOperationsRef.current = operations
-    }
-  }, [operations, onOperationsChange])
 
   // Handle ownership expiry by clearing selection
   const onOwnershipExpired = useCallback((event: any) => {
@@ -230,6 +243,13 @@ export default function Canvas({
       window.removeEventListener('resize', handleWindowResize)
     }
   }, [])
+
+  // Pass operations from useCanvas to parent component
+  useEffect(() => {
+    if (operations && onOperationsChange) {
+      onOperationsChange(operations)
+    }
+  }, [operations, onOperationsChange])
 
   // Handle mouse down to start rectangle/ellipse creation
   const handleMouseDown = useCallback((e: any) => {
@@ -845,6 +865,24 @@ export default function Canvas({
       
       {/* Cursor Position Display */}
       <CursorPositionDisplay position={currentCursorPosition} />
+      
+      {/* AI Chat */}
+      {operations && (
+        <AIChat
+          operations={operations}
+          canvasSize={dimensions}
+          isVisible={isAIChatVisible}
+          onVisibilityChange={setIsAIChatVisible}
+          stateUpdater={stateUpdater}
+        />
+      )}
+      
+      {/* AI Toggle Button */}
+      <AIToggleButton
+        isVisible={isAIChatVisible}
+        onToggle={() => setIsAIChatVisible(!isAIChatVisible)}
+        isReady={!!operations}
+      />
     </div>
   )
 }
