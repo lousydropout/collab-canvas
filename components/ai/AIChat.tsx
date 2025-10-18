@@ -33,6 +33,10 @@ interface AIChatProps {
   onVisibilityChange: (visible: boolean) => void
   /** Optional state updater for local state management */
   stateUpdater?: CanvasStateUpdater
+  /** Current color for object creation */
+  currentColor?: string
+  /** Viewport information for positioning */
+  viewportInfo?: { scale: number; position: { x: number; y: number } }
 }
 
 export default function AIChat({
@@ -40,7 +44,9 @@ export default function AIChat({
   canvasSize,
   isVisible,
   onVisibilityChange,
-  stateUpdater
+  stateUpdater,
+  currentColor,
+  viewportInfo
 }: AIChatProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -49,7 +55,13 @@ export default function AIChat({
   const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info')
 
   // Initialize AI service
-  const [ai] = useState(() => new CanvasAI(operations, canvasSize, stateUpdater))
+  const [ai] = useState(() => new CanvasAI(
+    operations, 
+    canvasSize, 
+    stateUpdater,
+    currentColor,
+    viewportInfo
+  ))
 
   // Focus input when chat becomes visible
   useEffect(() => {
@@ -62,6 +74,20 @@ export default function AIChat({
   useEffect(() => {
     ai.updateCanvasSize(canvasSize)
   }, [ai, canvasSize])
+
+  // Update AI service when current color changes
+  useEffect(() => {
+    if (currentColor) {
+      ai.updateCurrentColor(currentColor)
+    }
+  }, [ai, currentColor])
+
+  // Update AI service when viewport info changes
+  useEffect(() => {
+    if (viewportInfo) {
+      ai.updateViewportInfo(viewportInfo)
+    }
+  }, [ai, viewportInfo])
 
   /**
    * Handle sending a message to the AI
@@ -78,7 +104,7 @@ export default function AIChat({
       
       if (response.success) {
         setStatusMessage(response.message)
-        setStatusType(response.objectType === -1 ? 'info' : 'success')
+        setStatusType(response.commandData?.command === 'create' ? 'success' : 'info')
       } else {
         setStatusMessage(response.error || 'An error occurred')
         setStatusType('error')

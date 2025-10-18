@@ -158,6 +158,12 @@ export default function Canvas({
     }
   }), [ownership, addObjectToState])
 
+  // Memoize viewport info for AI
+  const viewportInfo = useMemo(() => ({ 
+    scale: currentScale, 
+    position: currentStagePosition 
+  }), [currentScale, currentStagePosition])
+
   // Notify parent component when selected objects change
   useEffect(() => {
     onSelectedObjectsChange?.(state.selectedObjects)
@@ -874,6 +880,8 @@ export default function Canvas({
           isVisible={isAIChatVisible}
           onVisibilityChange={setIsAIChatVisible}
           stateUpdater={stateUpdater}
+          currentColor={currentColor}
+          viewportInfo={viewportInfo}
         />
       )}
       
