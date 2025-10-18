@@ -41,6 +41,7 @@ export function useRealtime({
   const presenceChannelRef = useRef<RealtimeChannel | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isReconnectingRef = useRef(false)
+  const reconnectAttemptsRef = useRef(0)
   
   // Store callback functions in refs to prevent re-renders
   const onObjectCreatedRef = useRef(onObjectCreated)
@@ -321,12 +322,18 @@ export function useRealtime({
       clearTimeout(reconnectTimeoutRef.current)
     }
 
+    // Calculate exponential backoff delay (2s, 4s, 8s, 16s, max 30s)
+    const baseDelay = 2000
+    const maxDelay = 30000
+    const delay = Math.min(baseDelay * Math.pow(2, reconnectAttemptsRef.current), maxDelay)
+    
+    console.log(`🔄 Scheduling reconnection attempt ${reconnectAttemptsRef.current + 1} in ${delay}ms...`)
+    
     // Set a timeout to attempt reconnection
     reconnectTimeoutRef.current = setTimeout(async () => {
       try {
-        if (isDev) {
-          console.log('🔄 Attempting to reconnect channels...')
-        }
+        reconnectAttemptsRef.current++
+        console.log(`🔄 Attempting to reconnect channels (attempt ${reconnectAttemptsRef.current})...`)
         
         // Clean up existing channels
         if (channelRef.current) {
@@ -338,20 +345,21 @@ export function useRealtime({
           presenceChannelRef.current = null
         }
 
+        // Reset initialization flag to allow reconnection
+        isInitializingRef.current = false
+
         // Wait a moment for cleanup
         await new Promise(resolve => setTimeout(resolve, 1000))
 
         // Reinitialize channels (this will be handled by the main useEffect)
-        if (isDev) {
-          console.log('🔄 Channels cleaned up, reinitializing...')
-        }
+        console.log('🔄 Channels cleaned up, reinitializing...')
         
       } catch (error) {
         console.error('❌ Reconnection failed:', error)
       } finally {
         isReconnectingRef.current = false
       }
-    }, 2000) // Wait 2 seconds before attempting reconnection
+    }, delay)
   }, [])
 
   // Update selected objects in presence
@@ -605,6 +613,17 @@ export function useRealtime({
               isConnected: status === 'SUBSCRIBED',
               error: status === 'CHANNEL_ERROR' ? 'Failed to connect to canvas channel' : null
             }))
+            
+            // Reset reconnection attempts on successful connection
+            if (status === 'SUBSCRIBED') {
+              reconnectAttemptsRef.current = 0
+            }
+            
+            // Trigger reconnection on channel error
+            if (status === 'CHANNEL_ERROR') {
+              console.log('🔄 Channel error detected, triggering reconnection...')
+              triggerReconnection()
+            }
           }),
           presenceChannel.subscribe(async (status) => {
             if (isDev) {
@@ -651,6 +670,7 @@ export function useRealtime({
       // Reset initialization flags
       isInitializingRef.current = false
       hasLoggedWaitingRef.current = false
+      reconnectAttemptsRef.current = 0
       
       // Clean up auth subscription
       if (authSubscription) {
