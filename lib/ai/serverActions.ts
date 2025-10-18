@@ -18,20 +18,41 @@ import { generateText } from 'ai'
 
 export interface AICommand {
   command: 'create' | 'modify' | null
-  objectType: 'rectangle' | 'ellipse' | null
-  x: number | null
-  y: number | null
-  width: number | null
-  height: number | null
-  color: string | null
+  objectType?: 'rectangle' | 'ellipse' | null
+  x?: number | null
+  y?: number | null
+  width?: number | null
+  height?: number | null
+  color?: string | null
   // Modify command attributes
-  deltaX: number | null
-  deltaY: number | null
-  newX: number | null
-  newY: number | null
-  scaleBy: number | null
-  newWidth: number | null
-  newHeight: number | null
+  deltaX?: number | null
+  deltaY?: number | null
+  newX?: number | null
+  newY?: number | null
+  scaleBy?: number | null
+  newWidth?: number | null
+  newHeight?: number | null
+  // Batch support
+  args?: Array<{
+    objectType: 'rectangle' | 'ellipse'
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    color?: string
+  }>
+  // Pattern support
+  pattern?: {
+    type: 'grid' | 'line' | 'circle' | 'random'
+    count?: number
+    rows?: number
+    columns?: number
+    spacing?: { x: number; y: number }
+    startPosition?: { x: number; y: number }
+    width?: number
+    height?: number
+    color?: string
+  }
 }
 
 export interface IntentDetectionResult {
@@ -60,119 +81,144 @@ export async function detectObjectIntent(message: string, context: AIContext): P
     console.log('🤖 Server Action - Processing message:', message)
 
     // JSON prompt asking AI to respond with structured command data
-    const prompt = `Analyze this message and respond with ONLY valid JSON. Make your best guess for any field you cannot determine from the user's message - avoid using null when you can make a reasonable assumption.
+    const prompt = `You are an assistant that converts natural language drawing commands into structured JSON for a Figma-like canvas.
 
-CONTEXT:
-- Selected objects: ${context.selectedObjectsCount}
-- Viewport size: ${context.viewportWidth} x ${context.viewportHeight} pixels
-- Viewport top-left position: (${context.viewportTopLeft.x}, ${context.viewportTopLeft.y})
+**Instructions:**
+- Respond with ONLY valid JSON; no markdown, commentary, or code blocks.
+- Always return JSON matching the AICommand interface.
+- Infer reasonable defaults if fields are missing: center objects, default sizes, random colors.
+- Do not mix conflicting fields: deltaX with newX, deltaY with newY, scaleBy with newWidth/newHeight.
 
-VISIBLE COORDINATE RANGES (middle quartile for better visibility):
-- X-range: [${context.viewportTopLeft.x + context.viewportWidth * 0.25}, ${context.viewportTopLeft.x + context.viewportWidth * 0.75}]
-- Y-range: [${context.viewportTopLeft.y + context.viewportHeight * 0.25}, ${context.viewportTopLeft.y + context.viewportHeight * 0.75}]
-- Center: (${context.viewportTopLeft.x + context.viewportWidth * 0.5}, ${context.viewportTopLeft.y + context.viewportHeight * 0.5})
-- Coordinate system: X increases left-to-right, Y increases top-to-bottom
-- Objects must be placed within these ranges to be clearly visible
+**Selection Rules:**
+1. **Modify existing objects** – use "modify" template.
+2. **Create single object** – use top-level fields.
+3. **Create 2–10 objects** or **>10 objects with user-specified positions** – use "args" array, AI spreads objects in viewport.
+4. **Create >10 objects or pattern-based layout** (grid, line, circle, random) – use "pattern" object, do not enumerate all objects.
 
-POSITIONING GUIDANCE (within middle quartile):
-- "left" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.25}
-- "right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.75}
-- "top" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.25}
-- "bottom" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.75}
+**Context:**
+{
+  "selectedObjectsCount": ${context.selectedObjectsCount},
+  "viewport": {
+    "width": ${context.viewportWidth},
+    "height": ${context.viewportHeight},
+    "topLeft": { "x": ${context.viewportTopLeft.x}, "y": ${context.viewportTopLeft.y} },
+    "center": { "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5} },
+    "visibleRange": {
+      "xMin": ${context.viewportTopLeft.x + context.viewportWidth * 0.1},
+      "xMax": ${context.viewportTopLeft.x + context.viewportWidth * 0.9},
+      "yMin": ${context.viewportTopLeft.y + context.viewportHeight * 0.1},
+      "yMax": ${context.viewportTopLeft.y + context.viewportHeight * 0.9}
+    }
+  },
+  "defaults": {
+    "sizes": {
+      "small": { "width": ${Math.round(context.viewportWidth * 0.05)}, "height": ${Math.round(context.viewportHeight * 0.05)} },
+      "medium": { "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportHeight * 0.1)} },
+      "large": { "width": ${Math.round(context.viewportWidth * 0.25)}, "height": ${Math.round(context.viewportHeight * 0.2)} }
+    }
+  }
+}
+
+**POSITIONING GUIDANCE (within visible range):**
+- "left" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.1}
+- "right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.9}
+- "top" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.1}
+- "bottom" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.9}
 - "center" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
-- "top-left" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.25}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.25}
-- "top-right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.75}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.25}
-- "bottom-left" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.25}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.75}
-- "bottom-right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.75}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.75}
 
-VIEWPORT CENTER CALCULATION:
-- Viewport center = top-left + (width/2, height/2)
-- Center x: ${context.viewportTopLeft.x + context.viewportWidth * 0.5}
-- Center y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
-
-SIZE GUIDANCE:
-- Default rectangle: width: ${Math.round(context.viewportWidth * 0.1)}, height: ${Math.round(context.viewportHeight * 0.1)}
-- Default ellipse: width: ${Math.round(context.viewportWidth * 0.1)}, height: ${Math.round(context.viewportWidth * 0.1)} (square for circles)
-- Default circle: width: ${Math.round(context.viewportWidth * 0.1)}, height: ${Math.round(context.viewportWidth * 0.1)} (always square)
-- Default square: width: ${Math.round(context.viewportWidth * 0.1)}, height: ${Math.round(context.viewportWidth * 0.1)} (always square)
-- Small objects: width: ${Math.round(context.viewportWidth * 0.05)}, height: ${Math.round(context.viewportHeight * 0.05)}
-- Large objects: width: ${Math.round(context.viewportWidth * 0.25)}, height: ${Math.round(context.viewportHeight * 0.2)}
-
-OBJECT TYPE GUIDANCE:
+**OBJECT TYPE GUIDANCE:**
 - "square" = rectangle with equal width and height
 - "circle" = ellipse with equal width and height  
-- "rectangle" = rectangle (can be any aspect ratio)
-- "ellipse" = ellipse (can be any aspect ratio)
+- "rectangle" = rectangle (any aspect ratio)
+- "ellipse" = ellipse (any aspect ratio)
 
-MODIFY COMMAND GUIDANCE:
-- "move right" = deltaX: 30, deltaY: 0
-- "move left" = deltaX: -30, deltaY: 0
-- "move up" = deltaX: 0, deltaY: -30
-- "move down" = deltaX: 0, deltaY: 30
-- "move to top" = newY: ${context.viewportTopLeft.y + context.viewportHeight * 0.25}
-- "move to center" = newX: ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, newY: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
-- "make bigger" = scaleBy: 0.2 (20% larger)
-- "make smaller" = scaleBy: -0.2 (20% smaller)
-- "resize to 100x50" = newWidth: 100, newHeight: 50
-- "change color to red" = color: "#ff0000"
-- Default modify values: deltaX: 0, deltaY: 0, newX: null, newY: null, scaleBy: 0, color: null, newWidth: null, newHeight: null
-
-COORDINATE SYSTEM IMPORTANT:
-- Y-axis increases downward (computer graphics standard)
+**COORDINATE SYSTEM:**
+- Y-axis increases downward
 - Positive deltaY moves objects DOWN, negative deltaY moves objects UP
 - Positive deltaX moves objects RIGHT, negative deltaX moves objects LEFT
 
-FIELD USAGE RULES:
-- Use deltaX/deltaY for relative movement (how much to move from current position)
-- Use newX/newY for absolute positioning (move to specific coordinates)
-- Use scaleBy for proportional size changes (multiply current size by factor)
-- Use newWidth/newHeight for specific size changes (set exact dimensions)
-- DO NOT use both deltaX and newX, or both deltaY and newY, or both scaleBy and newWidth/newHeight
+**FIELD USAGE:**
+- deltaX/deltaY: relative movement
+- newX/newY: absolute positioning
+- scaleBy: proportional size change
+- newWidth/newHeight: absolute size
+- Do not mix deltaX with newX, deltaY with newY, scaleBy with newWidth/newHeight
 
-COLOR GUIDANCE:
-- Common colors: #ff0000 (red), #00ff00 (green), #0000ff (blue), #ffff00 (yellow), #ff00ff (magenta), #00ffff (cyan), #800080 (violet/purple), #ffa500 (orange), #008000 (dark green), #ffc0cb (pink)
-- Default color: #000000 (black)
+**Templates:**
 
+CREATE SINGLE OBJECT:
 {
-  "command": "create" | "modify" | null,
-  "objectType": "rectangle" | "ellipse" | null,
-  "x": number | null,
-  "y": number | null,
-  "width": number | null,
-  "height": number | null,
-  "color": "#hexcolor" | null,
-  "deltaX": number | null,
-  "deltaY": number | null,
-  "newX": number | null,
-  "newY": number | null,
-  "scaleBy": number | null,
-  "newWidth": number | null,
-  "newHeight": number | null
+  "command": "create",
+  "objectType": "rectangle" | "ellipse",
+  "x": number,
+  "y": number,
+  "width": number,
+  "height": number,
+  "color": "#hexcolor"
 }
 
-Examples:
-- "create a rectangle" -> {"command": "create", "objectType": "rectangle", "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5}, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportHeight * 0.1)}, "color": "#000000", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "add blue ellipse at 100,200" -> {"command": "create", "objectType": "ellipse", "x": 100, "y": 200, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportWidth * 0.1)}, "color": "#0000ff", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "create rectangle in center" -> {"command": "create", "objectType": "rectangle", "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5}, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportHeight * 0.1)}, "color": "#000000", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "add circle on the left" -> {"command": "create", "objectType": "ellipse", "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.1}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5}, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportWidth * 0.1)}, "color": "#000000", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "yellow circle to the right" -> {"command": "create", "objectType": "ellipse", "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.9}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5}, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportWidth * 0.1)}, "color": "#ffff00", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "violet square" -> {"command": "create", "objectType": "rectangle", "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5}, "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportWidth * 0.1)}, "color": "#800080", "deltaX": null, "deltaY": null, "newX": null, "newY": null, "scaleBy": null, "newWidth": null, "newHeight": null}
-- "move right" -> {"command": "modify", "color": null, "deltaX": 30, "deltaY": 0, "newX": null, "newY": null, "scaleBy": 0, "newWidth": null, "newHeight": null}
-- "make bigger" -> {"command": "modify", "color": null, "deltaX": 0, "deltaY": 0, "newX": null, "newY": null, "scaleBy": 0.2, "newWidth": null, "newHeight": null}
-- "change to red" -> {"command": "modify", "color": "#ff0000", "deltaX": 0, "deltaY": 0, "newX": null, "newY": null, "scaleBy": 0, "newWidth": null, "newHeight": null}
-- "move to top" -> {"command": "modify", "color": null, "deltaX": null, "deltaY": null, "newX": null, "newY": ${context.viewportTopLeft.y + context.viewportHeight * 0.25}, "scaleBy": 0, "newWidth": null, "newHeight": null}
+CREATE SMALL REPEATED OBJECTS (2–10) OR LARGE WITH USER-POSITIONS:
+{
+  "command": "create",
+  "args": [
+    {
+      "objectType": "rectangle" | "ellipse",
+      "x": number,
+      "y": number,
+      "width": number,
+      "height": number,
+      "color": "#hexcolor"
+    }
+  ]
+}
 
-IMPORTANT: 
-- Make intelligent guesses instead of using null when possible
-- If no position specified, use center of viewport
-- If no size specified, use appropriate defaults based on object type
-- If no color specified, use black (#000000)
-- For modify commands: use deltaX: 0, deltaY: 0, newX: null, newY: null, scaleBy: 0, color: null, newWidth: null, newHeight: null as defaults
-- For modify commands: DO NOT include objectType, x, y, width, height fields (only for create commands)
-- DO NOT use conflicting fields: deltaX with newX, deltaY with newY, scaleBy with newWidth/newHeight
-- Respond with ONLY the JSON object, no markdown formatting, no code blocks, no additional text.
+CREATE PATTERN (>10 OR GRID/LINE/CIRCLE/RANDOM):
+{
+  "command": "create",
+  "objectType": "rectangle" | "ellipse",
+  "pattern": {
+    "type": "grid" | "line" | "circle" | "random",
+    "count": number,             // required for line/circle/random
+    "rows": number,              // required for grid
+    "columns": number,           // required for grid
+    "spacing": { "x": number, "y": number },  // optional
+    "startPosition": { "x": number, "y": number }, // optional
+    "width": number,             // optional, default if missing
+    "height": number,            // optional, default if missing
+    "color": "#hexcolor"         // optional, random if missing
+  }
+}
 
-Message: "${message}"`
+MODIFY OBJECT:
+{
+  "command": "modify",
+  "deltaX": number,  // default: 0
+  "deltaY": number,  // default: 0
+  "newX": number | null,
+  "newY": number | null,
+  "scaleBy": number, // default: 0
+  "newWidth": number | null,
+  "newHeight": number | null,
+  "color": "#hexcolor" | null
+}
+
+**Examples:**
+- "create a rectangle" -> single object template
+- "add 3 blue circles" -> args template  
+- "create a 10x10 grid of rectangles" -> pattern template (grid)
+- "create a line of 5 circles" -> pattern template (line)
+- "create random dots" -> pattern template (random)
+- "move right" -> modify template
+- "make bigger" -> modify template
+- "change to red" -> modify template
+
+**IMPORTANT:**
+- Use "args" for 2–10 repeated objects with automatic spreading.
+- Use "pattern" for >10 objects or pattern layouts.
+- Defaults: center, default sizes, random colors.
+- Respond ONLY with JSON, no markdown or commentary.
+
+**User command:** "${message}"`
 
     console.log('📝 Server Action - Prompt:', prompt)
 
