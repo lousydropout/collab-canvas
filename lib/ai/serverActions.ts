@@ -2,11 +2,11 @@
  * Server Actions for AI Intent Detection
  * 
  * This module provides server-side functions for AI-powered object creation.
- * Uses Vercel AI SDK with OpenAI for intent detection.
+ * Uses Vercel AI SDK with OpenAI for simple intent detection via text parsing.
  * 
  * Features:
  * - Server-side AI processing
- * - Type-safe function calls
+ * - Simple text-based responses (no tools needed)
  * - Error handling and validation
  * - Detailed logging
  */
@@ -15,10 +15,19 @@
 
 import { openai } from '@ai-sdk/openai'
 import { generateText } from 'ai'
-import { createObjectTool } from './vercelTools'
+
+export interface AICommand {
+  command: 'create' | 'modify' | null
+  objectType: 'rectangle' | 'ellipse' | null
+  x: number | null
+  y: number | null
+  width: number | null
+  height: number | null
+  color: string | null
+}
 
 export interface IntentDetectionResult {
-  objectType: number // -1: none, 0: rectangle, 1: ellipse
+  commandData: AICommand | null
   message: string
   success: boolean
   error?: string
@@ -34,64 +43,59 @@ export async function detectObjectIntent(message: string): Promise<IntentDetecti
   try {
     console.log('🤖 Server Action - Processing message:', message)
 
-    // Create the system prompt with detailed instructions
-    const systemPrompt = `You are an object creation detector. Analyze the user's message and determine if they want to:
-1. Create a rectangle
-2. Create an ellipse
-3. Neither (unrelated request)
+    // JSON prompt asking AI to respond with structured command data
+    const prompt = `Analyze this message and respond with ONLY valid JSON. Use null for any field you cannot determine from the user's message:
 
-Use the createObjectTool to determine the object type:
-- Return 0 for rectangle
-- Return 1 for ellipse
-- Return -1 for no creation
+{
+  "command": "create" | "modify" | null,
+  "objectType": "rectangle" | "ellipse" | null,
+  "x": number | null,
+  "y": number | null,
+  "width": number | null,
+  "height": number | null,
+  "color": "#hexcolor" | null
+}
 
-User message: "${message}"
+Examples:
+- "create a rectangle" -> {"command": "create", "objectType": "rectangle", "x": null, "y": null, "width": null, "height": null, "color": null}
+- "add blue ellipse at 100,200" -> {"command": "create", "objectType": "ellipse", "x": 100, "y": 200, "width": null, "height": null, "color": "#0000ff"}
 
-Analyze this message and use the createObjectTool.`
+Message: "${message}"`
 
-    console.log('📝 Server Action - System prompt:', systemPrompt)
+    console.log('📝 Server Action - Prompt:', prompt)
 
-    // Generate intent detection response
+    // Generate simple text response (no tools needed)
     console.log('🚀 Server Action - Starting generateText with OpenAI...')
     const result = await generateText({
       model: openai('gpt-4o-mini'),
-      prompt: systemPrompt,
-      tools: { createObjectTool },
+      prompt: prompt,
       temperature: 0.1
     })
 
     console.log('🔍 Server Action - Full LLM response:', JSON.stringify(result, null, 2))
-    console.log('🔍 Server Action - Tool calls:', result.toolCalls)
-    console.log('🔍 Server Action - Tool calls length:', result.toolCalls?.length || 0)
     console.log('🔍 Server Action - Text response:', result.text)
-    console.log('🔍 Server Action - Tool results:', result.toolResults)
 
-    // Extract the detected object type from tool calls
-    let detectedType = -1
-    if (result.toolCalls && result.toolCalls.length > 0) {
-      const toolCall = result.toolCalls[0]
-      console.log('🔍 Server Action - First tool call:', JSON.stringify(toolCall, null, 2))
-      console.log('🔍 Server Action - Tool call structure:', {
-        toolName: toolCall.toolName,
-        args: toolCall.args,
-        hasArgs: !!toolCall.args,
-        argsKeys: toolCall.args ? Object.keys(toolCall.args) : 'no args'
-      })
+    // Parse the JSON response
+    const responseText = result.text.trim()
+    console.log('🔍 Server Action - Response text:', responseText)
+    
+    try {
+      const commandData = JSON.parse(responseText) as AICommand
+      console.log('🔍 Server Action - Parsed command data:', commandData)
       
-      if (toolCall.toolName === 'createObjectTool') {
-        // The AI SDK uses 'input' property, not 'args'
-        const input = (toolCall as any).input || {}
-        detectedType = input.typeOfObject !== undefined ? input.typeOfObject : -1
-        console.log('🔍 Server Action - Extracted typeOfObject from input:', detectedType)
+      return {
+        commandData,
+        message: result.text,
+        success: true
       }
-    }
-
-    console.log('✅ Server Action - Final detected type:', detectedType)
-
-    return {
-      objectType: detectedType,
-      message: result.text,
-      success: true
+    } catch (error) {
+      console.log('🔍 Server Action - Failed to parse JSON response:', error)
+      return {
+        commandData: null,
+        message: 'Could not understand command',
+        success: false,
+        error: 'Invalid JSON response'
+      }
     }
   } catch (error) {
     console.error('❌ Server Action - Error occurred:', error)
@@ -112,7 +116,7 @@ Analyze this message and use the createObjectTool.`
     }
 
     return {
-      objectType: -1,
+      commandData: null,
       message: errorMessage,
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
