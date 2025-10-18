@@ -150,13 +150,23 @@ export default function Canvas({
       console.log('🎨 State updater adding object to local state:', object.id)
       addObjectToState(object)
     },
+    updateObject: async (id: string, updates: any) => {
+      console.log('🔧 State updater updating object:', id, updates)
+      await updateObject(id, updates)
+      // Return the updated object from the operations service
+      return operations ? await operations.getObject(id) : null
+    },
     initializeOwnership: async (object: any, userId: string, displayName?: string) => {
       console.log('🏷️ State updater initializing ownership:', object.id)
       if (ownership.handleNewObjectCreated) {
         await ownership.handleNewObjectCreated(object, userId, displayName)
       }
+    },
+    claimObject: async (objectId: string) => {
+      console.log('🏷️ State updater claiming object:', objectId)
+      return await ownership.claimObject(objectId)
     }
-  }), [ownership, addObjectToState])
+  }), [ownership, addObjectToState, updateObject])
 
   // Memoize viewport info for AI
   const viewportInfo = useMemo(() => ({ 
@@ -882,6 +892,7 @@ export default function Canvas({
           stateUpdater={stateUpdater}
           currentColor={currentColor}
           viewportInfo={viewportInfo}
+          selectedObjects={state.selectedObjects}
         />
       )}
       

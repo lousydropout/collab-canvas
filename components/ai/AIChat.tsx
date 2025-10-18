@@ -37,6 +37,8 @@ interface AIChatProps {
   currentColor?: string
   /** Viewport information for positioning */
   viewportInfo?: { scale: number; position: { x: number; y: number } }
+  /** Currently selected objects */
+  selectedObjects?: string[]
 }
 
 export default function AIChat({
@@ -46,7 +48,8 @@ export default function AIChat({
   onVisibilityChange,
   stateUpdater,
   currentColor,
-  viewportInfo
+  viewportInfo,
+  selectedObjects = []
 }: AIChatProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState('')
@@ -100,7 +103,7 @@ export default function AIChat({
     setStatusType('info')
 
     try {
-      const response: AIResponse = await ai.processMessage(inputValue.trim())
+      const response: AIResponse = await ai.processMessage(inputValue.trim(), selectedObjects)
       
       if (response.success) {
         setStatusMessage(response.message)

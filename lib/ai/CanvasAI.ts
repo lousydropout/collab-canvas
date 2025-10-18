@@ -13,7 +13,7 @@
 import { CanvasOperations } from '@/lib/canvas/CanvasOperations'
 import { CanvasSize } from '@/lib/canvas/coordinateUtils'
 import { CanvasObject } from '@/types/canvas'
-import { detectObjectIntent, AICommand } from './serverActions'
+import { detectObjectIntent, AICommand, AIContext } from './serverActions'
 
 // Default values for object creation
 const DEFAULT_SIZE = { width: 200, height: 150 }
@@ -28,7 +28,9 @@ export interface AIResponse {
 
 export interface CanvasStateUpdater {
   addObject: (object: CanvasObject) => void
+  updateObject: (id: string, updates: Partial<CanvasObject>) => Promise<CanvasObject | null>
   initializeOwnership: (object: CanvasObject, userId: string, displayName?: string) => Promise<void>
+  claimObject: (objectId: string) => Promise<boolean>
 }
 
 /**
@@ -93,14 +95,28 @@ export class CanvasAI {
    * Process a user message and create object if intent detected
    * 
    * @param message - User's natural language command
+   * @param selectedObjects - Array of currently selected object IDs
    * @returns Promise<AIResponse> - AI's response and operation result
    */
-  async processMessage(message: string): Promise<AIResponse> {
+  async processMessage(message: string, selectedObjects: string[] = []): Promise<AIResponse> {
     try {
       console.log('🤖 Processing AI message:', message)
 
+      // Create context for the AI
+      const context: AIContext = {
+        selectedObjectsCount: selectedObjects.length,
+        viewportWidth: this.canvasSize.width / this.viewportInfo.scale,
+        viewportHeight: this.canvasSize.height / this.viewportInfo.scale,
+        viewportTopLeft: {
+          x: -this.viewportInfo.position.x / this.viewportInfo.scale,
+          y: -this.viewportInfo.position.y / this.viewportInfo.scale
+        }
+      }
+
+      console.log('📊 AI Context:', context)
+
       // Call the server action for intent detection
-      const result = await detectObjectIntent(message)
+      const result = await detectObjectIntent(message, context)
       console.log('✅ AI intent detection result:', result)
 
       if (!result.success || !result.commandData) {
@@ -117,11 +133,7 @@ export class CanvasAI {
       if (commandData.command === 'create') {
         return await this.handleCreateCommand(commandData)
       } else if (commandData.command === 'modify') {
-        return {
-          message: 'Modify commands are not yet supported',
-          success: false,
-          error: 'Modify commands not implemented'
-        }
+        return await this.handleModifyCommand(commandData, selectedObjects)
       } else {
         return {
           message: 'No command detected. Try "create a rectangle" or "add an ellipse"',
@@ -164,19 +176,53 @@ export class CanvasAI {
     width: number
     height: number
     color: string
+    deltaX: null
+    deltaY: null
+    newX: null
+    newY: null
+    scaleBy: null
+    newWidth: null
+    newHeight: null
   } {
     const center = this.getViewportCenter()
-    const width = commandData.width ?? DEFAULT_SIZE.width
-    const height = commandData.height ?? DEFAULT_SIZE.height
+    
+    // Use AI-provided values or smart defaults based on object type
+    let width = commandData.width ?? DEFAULT_SIZE.width
+    let height = commandData.height ?? DEFAULT_SIZE.height
+    
+    // If AI provided specific values, use them; otherwise apply viewport-relative defaults
+    if (commandData.width === null && commandData.height === null) {
+      if (commandData.objectType === 'ellipse') {
+        // Default ellipse/circle should be square, 10% of viewport width
+        const size = Math.round(this.canvasSize.width * 0.1)
+        width = size
+        height = size
+      } else {
+        // Default rectangle, 10% of viewport dimensions
+        width = Math.round(this.canvasSize.width * 0.1)
+        height = Math.round(this.canvasSize.height * 0.1)
+      }
+    }
+    
+    // Convert from center coordinates to top-left coordinates
+    const x = commandData.x !== null ? commandData.x - width / 2 : center.x - width / 2
+    const y = commandData.y !== null ? commandData.y - height / 2 : center.y - height / 2
     
     return {
       command: commandData.command || 'create',
       objectType: commandData.objectType || 'rectangle',
-      x: commandData.x ?? (center.x - width / 2),
-      y: commandData.y ?? (center.y - height / 2),
+      x,
+      y,
       width,
       height,
-      color: commandData.color ?? this.currentColor
+      color: commandData.color ?? this.currentColor,
+      deltaX: null,
+      deltaY: null,
+      newX: null,
+      newY: null,
+      scaleBy: null,
+      newWidth: null,
+      newHeight: null
     }
   }
 
@@ -239,6 +285,125 @@ export class CanvasAI {
         message: 'Unknown object type',
         success: false,
         error: 'Invalid object type'
+      }
+    }
+  }
+
+  /**
+   * Handle modify command for selected objects
+   */
+  private async handleModifyCommand(commandData: AICommand, selectedObjects: string[]): Promise<AIResponse> {
+    if (selectedObjects.length === 0) {
+      return {
+        message: 'No objects selected. Please select objects first before modifying them.',
+        success: false,
+        error: 'No objects selected'
+      }
+    }
+
+    console.log('🔧 Modifying objects:', selectedObjects, 'with command:', commandData)
+
+    try {
+      const results = []
+      
+      for (const objectId of selectedObjects) {
+        // Get current object properties
+        const currentObject = await this.operations.getObject(objectId)
+        if (!currentObject) {
+          console.error(`❌ Object ${objectId} not found`)
+          continue
+        }
+
+        // Check if object is already owned by current user, otherwise claim it
+        if (this.stateUpdater) {
+          // If object is already owned by current user, no need to claim
+          if (currentObject.owner === this.operations['user'].id) {
+            console.log(`✅ Object ${objectId} already owned by current user - proceeding with modification`)
+          } else {
+            console.log(`🏷️ Attempting to claim object ${objectId} for AI modification`)
+            const claimSucceeded = await this.stateUpdater.claimObject(objectId)
+            if (!claimSucceeded) {
+              console.error(`❌ Failed to claim object ${objectId} - skipping modification`)
+              continue
+            }
+            console.log(`✅ Successfully claimed object ${objectId}`)
+          }
+        }
+
+        const modifications: Partial<CanvasObject> = {}
+        
+        // Apply delta position changes (relative movement)
+        if (commandData.deltaX !== null && commandData.deltaX !== 0) {
+          modifications.x = currentObject.x + commandData.deltaX
+        }
+        if (commandData.deltaY !== null && commandData.deltaY !== 0) {
+          modifications.y = currentObject.y + commandData.deltaY
+        }
+        
+        // Apply absolute position changes (override deltas if both present)
+        if (commandData.newX !== null) {
+          modifications.x = commandData.newX
+        }
+        if (commandData.newY !== null) {
+          modifications.y = commandData.newY
+        }
+        
+        // Apply scaling (proportional size changes)
+        if (commandData.scaleBy !== null && commandData.scaleBy !== 0) {
+          modifications.width = currentObject.width * (1 + commandData.scaleBy)
+          modifications.height = currentObject.height * (1 + commandData.scaleBy)
+        }
+        
+        // Apply color change
+        if (commandData.color !== null) {
+          modifications.color = commandData.color
+        }
+        
+        // Apply specific size changes (override scaling if both present)
+        if (commandData.newWidth !== null) {
+          modifications.width = commandData.newWidth
+        }
+        if (commandData.newHeight !== null) {
+          modifications.height = commandData.newHeight
+        }
+        
+        // Only apply modifications if there are any
+        if (Object.keys(modifications).length > 0) {
+          console.log(`🔧 Applying modifications to ${objectId}:`, modifications)
+          
+          // Use stateUpdater's updateObject method which includes optimistic updates
+          const result = this.stateUpdater 
+            ? await this.stateUpdater.updateObject(objectId, modifications)
+            : await this.operations.updateObject(objectId, modifications)
+            
+          console.log(`🔧 Update result for ${objectId}:`, result)
+          if (result) {
+            results.push(result)
+          }
+        } else {
+          console.log(`🔧 No modifications to apply for ${objectId}`)
+        }
+      }
+      
+      if (results.length > 0) {
+        return {
+          message: `Successfully modified ${results.length} object(s)`,
+          success: true,
+          commandData: commandData
+        }
+      } else {
+        return {
+          message: 'No modifications were applied',
+          success: true,
+          commandData: commandData
+        }
+      }
+    } catch (error) {
+      console.error('❌ Modify command failed:', error)
+      return {
+        message: 'Failed to modify objects',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
