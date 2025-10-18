@@ -135,6 +135,24 @@ All core requirements have been implemented and are working:
 
 ## Next Steps (Post-MVP)
 Post-MVP enhancements can be added as needed, but the core collaborative canvas MVP is complete and functional. Potential future enhancements:
+
+### 🎮 Pong Game Pivot (Exploration Phase)
+- **Concept**: Transform canvas objects into interactive obstacles for Pong-style gameplay
+- **Single Player**: Convert obstacles to green by ball collision, paddle control
+- **PvP Mode**: Left vs right gameplay with real-time synchronization
+- **Technical**: Matter.js physics engine integration with react-konva
+- **Timeline**: 2-3 weeks for single player MVP, 4-6 weeks for PvP
+
+### 🏗️ Prototyping App Builder Pivot (Exploration Phase)
+- **Concept**: Transform canvas rectangles into React components for visual app development
+- **Component System**: Drag/drop UI components with nesting support
+- **Logic Builder**: ID-based data binding with JavaScript code integration
+- **AI Generation**: Generate JSX/TSX from visual component tree
+- **Deployment**: Dynamic routing (`/username/appname`) with multi-tenant data
+- **Technical**: Extend existing canvas objects with component properties
+- **Migration**: VERY EASY - database schema 90% ready, only need `parent_id` column
+
+### Traditional Enhancements
 - Additional shape tools (circles, text)
 - Advanced transformations (rotation)
 - Undo/redo functionality
