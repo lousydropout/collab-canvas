@@ -31,9 +31,9 @@ import { User } from '@supabase/supabase-js'
  */
 export interface RealtimeService {
   /** Broadcast object creation to other clients */
-  broadcastObjectCreated: (object: CanvasObject) => Promise<void>
+  broadcastObjectCreated: (object: CanvasObject, userId?: string, displayName?: string) => Promise<void>
   /** Broadcast object updates to other clients */
-  broadcastObjectUpdated: (object: CanvasObject) => Promise<void>
+  broadcastObjectUpdated: (object: CanvasObject, userId?: string) => Promise<void>
   /** Broadcast object deletion to other clients */
   broadcastObjectDeleted: (objectId: string) => Promise<void>
   /** Broadcast multiple object deletions to other clients */
