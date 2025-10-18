@@ -205,8 +205,8 @@ export class CanvasAI {
     }
     
     // Convert from center coordinates to top-left coordinates
-    const x = commandData.x !== null ? commandData.x - width / 2 : center.x - width / 2
-    const y = commandData.y !== null ? commandData.y - height / 2 : center.y - height / 2
+    const x = commandData.x !== null && commandData.x !== undefined ? commandData.x - width / 2 : center.x - width / 2
+    const y = commandData.y !== null && commandData.y !== undefined ? commandData.y - height / 2 : center.y - height / 2
     
     return {
       command: commandData.command || 'create',
@@ -230,8 +230,21 @@ export class CanvasAI {
    * Handle create command with applied defaults
    */
   private async handleCreateCommand(commandData: AICommand): Promise<AIResponse> {
+    console.log('🎨 Creating objects with command data:', commandData)
+    
+    // Handle batch creation with args array
+    if (commandData.args && commandData.args.length > 0) {
+      return await this.handleBatchCreation(commandData.args)
+    }
+    
+    // Handle pattern creation
+    if (commandData.pattern) {
+      return await this.handlePatternCreation(commandData)
+    }
+    
+    // Handle single object creation
     const params = this.applyDefaults(commandData)
-    console.log('🎨 Creating object with params:', params)
+    console.log('🎨 Creating single object with params:', params)
     
     if (params.objectType === 'rectangle') {
       const result = await this.operations.createRectangle({
@@ -245,10 +258,11 @@ export class CanvasAI {
       })
       console.log('🎨 createRectangle result:', result)
       
-      // Add to local state if state updater is available
+      // Initialize ownership and add to local state if state updater is available
       if (result && this.stateUpdater) {
-        console.log('🎨 Adding rectangle to local state:', result.id)
+        console.log('🎨 Initializing ownership for rectangle:', result.id)
         await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+        // Add to local state immediately (CanvasOperations.createRectangle already broadcasts)
         this.stateUpdater.addObject(result)
       }
       
@@ -268,10 +282,11 @@ export class CanvasAI {
       })
       console.log('🎨 createEllipse result:', result)
       
-      // Add to local state if state updater is available
+      // Initialize ownership and add to local state if state updater is available
       if (result && this.stateUpdater) {
-        console.log('🎨 Adding ellipse to local state:', result.id)
+        console.log('🎨 Initializing ownership for ellipse:', result.id)
         await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+        // Add to local state immediately (CanvasOperations.createEllipse already broadcasts)
         this.stateUpdater.addObject(result)
       }
       
@@ -285,6 +300,201 @@ export class CanvasAI {
         message: 'Unknown object type',
         success: false,
         error: 'Invalid object type'
+      }
+    }
+  }
+
+  /**
+   * Handle batch creation with args array
+   */
+  private async handleBatchCreation(args: Array<{
+    objectType: 'rectangle' | 'ellipse'
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    color?: string
+  }>): Promise<AIResponse> {
+    console.log('🎨 Creating batch of objects:', args.length)
+    
+    const results = []
+    const errors = []
+    
+    for (const arg of args) {
+      try {
+        const params = this.applyDefaults({
+          command: 'create',
+          objectType: arg.objectType,
+          x: arg.x ?? null,
+          y: arg.y ?? null,
+          width: arg.width ?? null,
+          height: arg.height ?? null,
+          color: arg.color ?? null
+        })
+        
+        let result
+        if (params.objectType === 'rectangle') {
+          result = await this.operations.createRectangle({
+            type: 'rectangle',
+            x: params.x,
+            y: params.y,
+            width: params.width,
+            height: params.height,
+            color: params.color,
+            rotation: 0
+          })
+        } else if (params.objectType === 'ellipse') {
+          result = await this.operations.createEllipse({
+            x: params.x,
+            y: params.y,
+            width: params.width,
+            height: params.height,
+            color: params.color,
+            rotation: 0
+          })
+        }
+        
+        if (result && this.stateUpdater) {
+          await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+          this.stateUpdater.addObject(result)
+        }
+        
+        results.push(result)
+      } catch (error) {
+        console.error('❌ Error creating object in batch:', error)
+        errors.push(error)
+      }
+    }
+    
+    const successCount = results.filter(r => r !== null).length
+    
+    return {
+      message: `Successfully created ${successCount} objects${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
+      success: successCount > 0,
+      commandData: { command: 'create', args }
+    }
+  }
+
+  /**
+   * Handle pattern creation
+   */
+  private async handlePatternCreation(commandData: AICommand): Promise<AIResponse> {
+    console.log('🎨 Creating pattern:', commandData.pattern)
+    
+    if (!commandData.pattern) {
+      return {
+        message: 'No pattern specified',
+        success: false,
+        error: 'Missing pattern data'
+      }
+    }
+    
+    const pattern = commandData.pattern
+    const objectType = commandData.objectType || 'rectangle'
+    
+    // For now, we'll create a simple implementation
+    // In a full implementation, you'd want to generate objects based on the pattern type
+    const results = []
+    
+    try {
+      // Simple grid pattern implementation
+      if (pattern.type === 'grid' && pattern.rows && pattern.columns) {
+        const spacing = pattern.spacing || { x: 50, y: 50 }
+        const startPos = pattern.startPosition || { x: 100, y: 100 }
+        const width = pattern.width || Math.round(this.canvasSize.width * 0.05)
+        const height = pattern.height || Math.round(this.canvasSize.height * 0.05)
+        const color = pattern.color || '#ff0000'
+        
+        for (let row = 0; row < pattern.rows; row++) {
+          for (let col = 0; col < pattern.columns; col++) {
+            const x = startPos.x + col * spacing.x
+            const y = startPos.y + row * spacing.y
+            
+            let result
+            if (objectType === 'rectangle') {
+              result = await this.operations.createRectangle({
+                type: 'rectangle',
+                x,
+                y,
+                width,
+                height,
+                color,
+                rotation: 0
+              })
+            } else {
+              result = await this.operations.createEllipse({
+                x,
+                y,
+                width,
+                height,
+                color,
+                rotation: 0
+              })
+            }
+            
+            if (result && this.stateUpdater) {
+              await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+              this.stateUpdater.addObject(result)
+            }
+            
+            results.push(result)
+          }
+        }
+      } else {
+        // For other pattern types, create a simple implementation
+        const count = pattern.count || 10
+        const width = pattern.width || Math.round(this.canvasSize.width * 0.05)
+        const height = pattern.height || Math.round(this.canvasSize.height * 0.05)
+        const color = pattern.color || '#ff0000'
+        
+        for (let i = 0; i < count; i++) {
+          const x = Math.random() * (this.canvasSize.width - width)
+          const y = Math.random() * (this.canvasSize.height - height)
+          
+          let result
+          if (objectType === 'rectangle') {
+            result = await this.operations.createRectangle({
+              type: 'rectangle',
+              x,
+              y,
+              width,
+              height,
+              color,
+              rotation: 0
+            })
+          } else {
+            result = await this.operations.createEllipse({
+              x,
+              y,
+              width,
+              height,
+              color,
+              rotation: 0
+            })
+          }
+          
+          if (result && this.stateUpdater) {
+            await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+            this.stateUpdater.addObject(result)
+          }
+          
+          results.push(result)
+        }
+      }
+      
+      const successCount = results.filter(r => r !== null).length
+      
+      return {
+        message: `Successfully created ${successCount} objects in ${pattern.type} pattern`,
+        success: successCount > 0,
+        commandData
+      }
+    } catch (error) {
+      console.error('❌ Error creating pattern:', error)
+      return {
+        message: 'Failed to create pattern',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -333,10 +543,10 @@ export class CanvasAI {
         const modifications: Partial<CanvasObject> = {}
         
         // Apply delta position changes (relative movement)
-        if (commandData.deltaX !== null && commandData.deltaX !== 0) {
+        if (commandData.deltaX !== null && commandData.deltaX !== undefined && commandData.deltaX !== 0) {
           modifications.x = currentObject.x + commandData.deltaX
         }
-        if (commandData.deltaY !== null && commandData.deltaY !== 0) {
+        if (commandData.deltaY !== null && commandData.deltaY !== undefined && commandData.deltaY !== 0) {
           modifications.y = currentObject.y + commandData.deltaY
         }
         
@@ -349,7 +559,7 @@ export class CanvasAI {
         }
         
         // Apply scaling (proportional size changes)
-        if (commandData.scaleBy !== null && commandData.scaleBy !== 0) {
+        if (commandData.scaleBy !== null && commandData.scaleBy !== undefined && commandData.scaleBy !== 0) {
           modifications.width = currentObject.width * (1 + commandData.scaleBy)
           modifications.height = currentObject.height * (1 + commandData.scaleBy)
         }

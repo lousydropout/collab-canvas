@@ -105,8 +105,18 @@ export function useRealtime({
   }, [])
 
   // Broadcast an object creation
-  const broadcastObjectCreated = useCallback(async (object: CanvasObject) => {
-    if (!channelRef.current || !user || !profile) return
+  const broadcastObjectCreated = useCallback(async (object: CanvasObject, userId?: string, displayName?: string) => {
+    console.log('🚨 DEBUG: broadcastObjectCreated called for:', object.id)
+    console.log('🚨 DEBUG: Channel ref:', !!channelRef.current, 'User:', !!user, 'User ID:', user?.id)
+    console.log('🚨 DEBUG: Provided userId:', userId, 'displayName:', displayName)
+    
+    const effectiveUser = user || (userId ? { id: userId } : null)
+    const effectiveDisplayName = displayName || profile?.display_name || user?.email || 'Anonymous'
+    
+    if (!channelRef.current || !effectiveUser) {
+      console.log('🚨 DEBUG: broadcastObjectCreated skipped - missing channel/user')
+      return
+    }
 
     // Validate session before broadcasting
     const isValidSession = await validateSession()
@@ -116,22 +126,36 @@ export function useRealtime({
     }
 
     if (isDev) {
-      console.log('📡 Broadcasting object created:', object.id, 'by', profile.display_name)
+      console.log('📡 Broadcasting object created:', object.id, 'by', effectiveDisplayName)
     }
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'object_created',
-      payload: {
-        object,
-        user_id: user.id,
-        creatorDisplayName: profile.display_name,
-      },
-    })
+    try {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'object_created',
+        payload: {
+          object,
+          user_id: effectiveUser.id,
+          creatorDisplayName: effectiveDisplayName,
+        },
+      })
+      console.log('📡 broadcastObjectCreated sent successfully')
+    } catch (error) {
+      console.error('📡 broadcastObjectCreated failed:', error)
+    }
   }, [user, profile?.display_name, validateSession])
 
   // Broadcast an object update
-  const broadcastObjectUpdated = useCallback(async (object: CanvasObject) => {
-    if (!channelRef.current || !user) return
+  const broadcastObjectUpdated = useCallback(async (object: CanvasObject, userId?: string) => {
+    console.log('🚨 DEBUG: broadcastObjectUpdated called for:', object.id)
+    console.log('🚨 DEBUG: Channel ref:', !!channelRef.current, 'User:', !!user, 'User ID:', user?.id)
+    console.log('🚨 DEBUG: Provided userId:', userId)
+    
+    const effectiveUser = user || (userId ? { id: userId } : null)
+    
+    if (!channelRef.current || !effectiveUser) {
+      console.log('🚨 DEBUG: broadcastObjectUpdated skipped - missing channel/user')
+      return
+    }
 
     // Validate session before broadcasting
     const isValidSession = await validateSession()
@@ -143,14 +167,19 @@ export function useRealtime({
     if (isDev) {
       console.log('📡 Broadcasting object updated:', object.id)
     }
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'object_updated',
-      payload: {
-        object,
-        user_id: user.id,
-      },
-    })
+    try {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'object_updated',
+        payload: {
+          object,
+          user_id: effectiveUser.id,
+        },
+      })
+      console.log('📡 broadcastObjectUpdated sent successfully')
+    } catch (error) {
+      console.error('📡 broadcastObjectUpdated failed:', error)
+    }
   }, [user, validateSession])
 
   // Broadcast an object deletion

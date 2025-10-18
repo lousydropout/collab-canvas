@@ -31,9 +31,9 @@ import { User } from '@supabase/supabase-js'
  */
 export interface RealtimeService {
   /** Broadcast object creation to other clients */
-  broadcastObjectCreated: (object: CanvasObject) => Promise<void>
+  broadcastObjectCreated: (object: CanvasObject, userId?: string, displayName?: string) => Promise<void>
   /** Broadcast object updates to other clients */
-  broadcastObjectUpdated: (object: CanvasObject) => Promise<void>
+  broadcastObjectUpdated: (object: CanvasObject, userId?: string) => Promise<void>
   /** Broadcast object deletion to other clients */
   broadcastObjectDeleted: (objectId: string) => Promise<void>
   /** Broadcast multiple object deletions to other clients */
@@ -153,7 +153,10 @@ export class CanvasOperations {
       console.log('✅ Rectangle created:', newObject)
       
       // Broadcast to other clients
-      await this.realtime.broadcastObjectCreated(newObject)
+      console.log('📡 About to broadcast rectangle creation:', newObject.id)
+      console.log('📡 CanvasOperations user:', this.user?.id)
+      await this.realtime.broadcastObjectCreated(newObject, this.user.id, await this.getDisplayName())
+      console.log('📡 Rectangle creation broadcast completed')
 
       return newObject
     } catch (error) {
@@ -208,7 +211,10 @@ export class CanvasOperations {
       console.log('✅ Ellipse created:', newObject)
       
       // Broadcast to other clients
-      await this.realtime.broadcastObjectCreated(newObject)
+      console.log('📡 About to broadcast ellipse creation:', newObject.id)
+      console.log('📡 CanvasOperations user:', this.user?.id)
+      await this.realtime.broadcastObjectCreated(newObject, this.user.id, await this.getDisplayName())
+      console.log('📡 Ellipse creation broadcast completed')
 
       return newObject
     } catch (error) {
@@ -246,7 +252,10 @@ export class CanvasOperations {
       console.log('✅ Object updated:', data)
       
       // Broadcast to other clients
-      await this.realtime.broadcastObjectUpdated(data)
+      console.log('📡 About to broadcast object update:', data.id)
+      console.log('📡 CanvasOperations user:', this.user?.id)
+      await this.realtime.broadcastObjectUpdated(data, this.user.id)
+      console.log('📡 Object update broadcast completed')
 
       return data
     } catch (error) {
