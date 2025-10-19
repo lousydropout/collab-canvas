@@ -1,9 +1,9 @@
 /**
  * Server Actions for AI Intent Detection
- * 
+ *
  * This module provides server-side functions for AI-powered object creation.
  * Uses Vercel AI SDK with OpenAI for simple intent detection via text parsing.
- * 
+ *
  * Features:
  * - Server-side AI processing
  * - Simple text-based responses (no tools needed)
@@ -11,74 +11,89 @@
  * - Detailed logging
  */
 
-'use server'
+"use server";
 
-import { openai } from '@ai-sdk/openai'
-import { generateText } from 'ai'
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+// Ensure API key is properly formatted
+if (process.env.OPENAI_API_KEY) {
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY.trim();
+}
 
 export interface AICommand {
-  command: 'create' | 'modify' | null
-  objectType?: 'rectangle' | 'ellipse' | null
-  x?: number | null
-  y?: number | null
-  width?: number | null
-  height?: number | null
-  color?: string | null
+  command: "create" | "modify" | "layout" | null;
+  objectType?: "rectangle" | "ellipse" | "square" | "circle" | null;
+  x?: number | null;
+  y?: number | null;
+  width?: number | null;
+  height?: number | null;
+  color?: string | null;
   // Modify command attributes
-  deltaX?: number | null
-  deltaY?: number | null
-  newX?: number | null
-  newY?: number | null
-  scaleBy?: number | null
-  newWidth?: number | null
-  newHeight?: number | null
+  deltaX?: number | null;
+  deltaY?: number | null;
+  newX?: number | null;
+  newY?: number | null;
+  scaleBy?: number | null;
+  newWidth?: number | null;
+  newHeight?: number | null;
+  // Layout command attributes
+  layoutType?: "row" | "column" | "grid" | "space" | "align" | null;
+  layoutDirection?: "horizontal" | "vertical" | null;
+  gridRows?: number | null;
+  gridColumns?: number | null;
+  spacing?: number | null;
+  alignType?: "left" | "right" | "center" | "top" | "bottom" | "middle" | null;
   // Batch support
   args?: Array<{
-    objectType: 'rectangle' | 'ellipse'
-    x?: number
-    y?: number
-    width?: number
-    height?: number
-    color?: string
-  }>
+    objectType: "rectangle" | "ellipse" | "square" | "circle";
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    color?: string;
+  }>;
   // Pattern support
   pattern?: {
-    type: 'grid' | 'line' | 'circle' | 'random'
-    count?: number
-    rows?: number
-    columns?: number
-    spacing?: { x: number; y: number }
-    startPosition?: { x: number; y: number }
-    width?: number
-    height?: number
-    color?: string
-  }
+    type: "grid" | "line" | "circle" | "random";
+    count?: number;
+    rows?: number;
+    columns?: number;
+    spacing?: { x: number; y: number };
+    startPosition?: { x: number; y: number };
+    width?: number;
+    height?: number;
+    color?: string;
+  };
 }
 
 export interface IntentDetectionResult {
-  commandData: AICommand | null
-  message: string
-  success: boolean
-  error?: string
+  commandData: AICommand | null;
+  message: string;
+  success: boolean;
+  error?: string;
 }
 
 export interface AIContext {
-  selectedObjectsCount: number
-  viewportWidth: number
-  viewportHeight: number
-  viewportTopLeft: { x: number; y: number }
+  selectedObjectsCount: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  viewportTopLeft: { x: number; y: number };
 }
 
 /**
  * Detect object creation intent from user message
- * 
+ *
  * @param message - User's natural language command
  * @param context - Additional context about user's viewport and selection
  * @returns Promise<IntentDetectionResult> - Detection result with object type
  */
-export async function detectObjectIntent(message: string, context: AIContext): Promise<IntentDetectionResult> {
+export async function detectObjectIntent(
+  message: string,
+  context: AIContext
+): Promise<IntentDetectionResult> {
   try {
-    console.log('🤖 Server Action - Processing message:', message)
+    console.log("🤖 Server Action - Processing message:", message);
 
     // JSON prompt asking AI to respond with structured command data
     const prompt = `You are an assistant that converts natural language drawing commands into structured JSON for a Figma-like canvas.
@@ -101,8 +116,12 @@ export async function detectObjectIntent(message: string, context: AIContext): P
   "viewport": {
     "width": ${context.viewportWidth},
     "height": ${context.viewportHeight},
-    "topLeft": { "x": ${context.viewportTopLeft.x}, "y": ${context.viewportTopLeft.y} },
-    "center": { "x": ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5} },
+    "topLeft": { "x": ${context.viewportTopLeft.x}, "y": ${
+      context.viewportTopLeft.y
+    } },
+    "center": { "x": ${
+      context.viewportTopLeft.x + context.viewportWidth * 0.5
+    }, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5} },
     "visibleRange": {
       "xMin": ${context.viewportTopLeft.x + context.viewportWidth * 0.1},
       "xMax": ${context.viewportTopLeft.x + context.viewportWidth * 0.9},
@@ -112,9 +131,15 @@ export async function detectObjectIntent(message: string, context: AIContext): P
   },
   "defaults": {
     "sizes": {
-      "small": { "width": ${Math.round(context.viewportWidth * 0.05)}, "height": ${Math.round(context.viewportHeight * 0.05)} },
-      "medium": { "width": ${Math.round(context.viewportWidth * 0.1)}, "height": ${Math.round(context.viewportHeight * 0.1)} },
-      "large": { "width": ${Math.round(context.viewportWidth * 0.25)}, "height": ${Math.round(context.viewportHeight * 0.2)} }
+      "small": { "width": ${Math.round(
+        context.viewportWidth * 0.05
+      )}, "height": ${Math.round(context.viewportHeight * 0.05)} },
+      "medium": { "width": ${Math.round(
+        context.viewportWidth * 0.1
+      )}, "height": ${Math.round(context.viewportHeight * 0.1)} },
+      "large": { "width": ${Math.round(
+        context.viewportWidth * 0.25
+      )}, "height": ${Math.round(context.viewportHeight * 0.2)} }
     }
   }
 }
@@ -124,7 +149,9 @@ export async function detectObjectIntent(message: string, context: AIContext): P
 - "right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.9}
 - "top" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.1}
 - "bottom" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.9}
-- "center" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.5}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
+- "center" = x: ${
+      context.viewportTopLeft.x + context.viewportWidth * 0.5
+    }, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
 
 **OBJECT TYPE GUIDANCE:**
 - "square" = rectangle with equal width and height
@@ -202,15 +229,32 @@ MODIFY OBJECT:
   "color": "#hexcolor" | null
 }
 
+LAYOUT OBJECTS:
+{
+  "command": "layout",
+  "layoutType": "row" | "column" | "grid" | "space" | "align",
+  "layoutDirection": "horizontal" | "vertical" | null,  // optional, inferred from layoutType
+  "gridRows": number | null,  // required for grid layout
+  "gridColumns": number | null,  // required for grid layout
+  "spacing": number | null,  // optional spacing for space layout
+  "alignType": "left" | "right" | "center" | "top" | "bottom" | "middle" | null  // required for align layout
+}
+
 **Examples:**
 - "create a rectangle" -> single object template
-- "add 3 blue circles" -> args template  
+- "create a blue square" -> single object template (square = rectangle)
+- "add 3 blue circles" -> args template (circle = ellipse)
 - "create a 10x10 grid of rectangles" -> pattern template (grid)
 - "create a line of 5 circles" -> pattern template (line)
 - "create random dots" -> pattern template (random)
 - "move right" -> modify template
 - "make bigger" -> modify template
 - "change to red" -> modify template
+- "arrange selected in a row" -> layout template (row)
+- "arrange selected in a column" -> layout template (column)
+- "create a 2x3 grid with selected" -> layout template (grid)
+- "space selected objects evenly" -> layout template (space)
+- "align selected to left" -> layout template (align)
 
 **IMPORTANT:**
 - Use "args" for 2–10 repeated objects with automatic spreading.
@@ -218,66 +262,74 @@ MODIFY OBJECT:
 - Defaults: center, default sizes, random colors.
 - Respond ONLY with JSON, no markdown or commentary.
 
-**User command:** "${message}"`
+**User command:** "${message}"`;
 
-    console.log('📝 Server Action - Prompt:', prompt)
+    console.log("📝 Server Action - Prompt:", prompt);
 
     // Generate simple text response (no tools needed)
-    console.log('🚀 Server Action - Starting generateText with OpenAI...')
+    console.log("🚀 Server Action - Starting generateText with OpenAI...");
     const result = await generateText({
-      model: openai('gpt-4o-mini'),
+      model: openai("gpt-4o-mini"),
       prompt: prompt,
-      temperature: 0.1
-    })
+      temperature: 0.1,
+    });
 
-    console.log('🔍 Server Action - Full LLM response:', JSON.stringify(result, null, 2))
-    console.log('🔍 Server Action - Text response:', result.text)
+    console.log(
+      "🔍 Server Action - Full LLM response:",
+      JSON.stringify(result, null, 2)
+    );
+    console.log("🔍 Server Action - Text response:", result.text);
 
     // Parse the JSON response
-    const responseText = result.text.trim()
-    console.log('🔍 Server Action - Response text:', responseText)
-    
+    const responseText = result.text.trim();
+    console.log("🔍 Server Action - Response text:", responseText);
+
     try {
       // Remove markdown code blocks if present
-      let jsonText = responseText
-      if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '')
-      } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '')
+      let jsonText = responseText;
+      if (jsonText.startsWith("```json")) {
+        jsonText = jsonText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+      } else if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/^```\s*/, "").replace(/\s*```$/, "");
       }
-      
-      const commandData = JSON.parse(jsonText) as AICommand
-      console.log('🔍 Server Action - Parsed command data:', commandData)
 
-    return {
+      const commandData = JSON.parse(jsonText) as AICommand;
+      console.log("🔍 Server Action - Parsed command data:", commandData);
+
+      return {
         commandData,
-      message: result.text,
-      success: true
-      }
+        message: result.text,
+        success: true,
+      };
     } catch (error) {
-      console.log('🔍 Server Action - Failed to parse JSON response:', error)
+      console.log("🔍 Server Action - Failed to parse JSON response:", error);
       return {
         commandData: null,
-        message: 'Could not understand command',
+        message: "Could not understand command",
         success: false,
-        error: 'Invalid JSON response'
-      }
+        error: "Invalid JSON response",
+      };
     }
   } catch (error) {
-    console.error('❌ Server Action - Error occurred:', error)
-    console.error('❌ Server Action - Error stack:', error instanceof Error ? error.stack : 'No stack trace')
-    
-    let errorMessage = 'Sorry, I encountered an error processing your request.'
-    
+    console.error("❌ Server Action - Error occurred:", error);
+    console.error(
+      "❌ Server Action - Error stack:",
+      error instanceof Error ? error.stack : "No stack trace"
+    );
+
+    let errorMessage = "Sorry, I encountered an error processing your request.";
+
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        errorMessage = 'OpenAI API key not configured. Please check your environment variables.'
-      } else if (error.message.includes('rate limit')) {
-        errorMessage = 'Rate limit exceeded. Please try again in a moment.'
-      } else if (error.message.includes('quota')) {
-        errorMessage = 'OpenAI quota exceeded. Please check your account limits.'
+      if (error.message.includes("API key")) {
+        errorMessage =
+          "OpenAI API key not configured. Please check your environment variables.";
+      } else if (error.message.includes("rate limit")) {
+        errorMessage = "Rate limit exceeded. Please try again in a moment.";
+      } else if (error.message.includes("quota")) {
+        errorMessage =
+          "OpenAI quota exceeded. Please check your account limits.";
       } else {
-        errorMessage = `Error: ${error.message}`
+        errorMessage = `Error: ${error.message}`;
       }
     }
 
@@ -285,7 +337,7 @@ MODIFY OBJECT:
       commandData: null,
       message: errorMessage,
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }

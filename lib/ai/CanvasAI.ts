@@ -157,10 +157,12 @@ export class CanvasAI {
         return await this.handleCreateCommand(commandData);
       } else if (commandData.command === "modify") {
         return await this.handleModifyCommand(commandData, selectedObjects);
+      } else if (commandData.command === "layout") {
+        return await this.handleLayoutCommand(commandData, selectedObjects);
       } else {
         return {
           message:
-            'No command detected. Try "create a rectangle" or "add an ellipse"',
+            'No command detected. Try "create a rectangle", "add an ellipse", or "arrange selected in a row"',
           success: true,
         };
       }
@@ -196,8 +198,8 @@ export class CanvasAI {
    * Apply default values to command data
    */
   private applyDefaults(commandData: AICommand): {
-    command: "create" | "modify";
-    objectType: "rectangle" | "ellipse";
+    command: "create" | "modify" | "layout";
+    objectType: "rectangle" | "ellipse" | "square" | "circle";
     x: number;
     y: number;
     width: number;
@@ -281,7 +283,15 @@ export class CanvasAI {
     const params = this.applyDefaults(commandData);
     console.log("🎨 Creating single object with params:", params);
 
-    if (params.objectType === "rectangle") {
+    // Map common object type aliases to supported types
+    const normalizedObjectType =
+      params.objectType === "square"
+        ? "rectangle"
+        : params.objectType === "circle"
+        ? "ellipse"
+        : params.objectType;
+
+    if (normalizedObjectType === "rectangle") {
       const result = await this.operations.createRectangle({
         type: "rectangle",
         x: params.x,
@@ -314,7 +324,7 @@ export class CanvasAI {
         success: true,
         commandData: params,
       };
-    } else if (params.objectType === "ellipse") {
+    } else if (normalizedObjectType === "ellipse") {
       const result = await this.operations.createEllipse({
         x: params.x,
         y: params.y,
@@ -360,7 +370,7 @@ export class CanvasAI {
    */
   private async handleBatchCreation(
     args: Array<{
-      objectType: "rectangle" | "ellipse";
+      objectType: "rectangle" | "ellipse" | "square" | "circle";
       x?: number;
       y?: number;
       width?: number;
@@ -385,8 +395,16 @@ export class CanvasAI {
           color: arg.color ?? null,
         });
 
+        // Map common object type aliases to supported types
+        const normalizedObjectType =
+          params.objectType === "square"
+            ? "rectangle"
+            : params.objectType === "circle"
+            ? "ellipse"
+            : params.objectType;
+
         let result;
-        if (params.objectType === "rectangle") {
+        if (normalizedObjectType === "rectangle") {
           result = await this.operations.createRectangle({
             type: "rectangle",
             x: params.x,
@@ -396,7 +414,7 @@ export class CanvasAI {
             color: params.color,
             rotation: 0,
           });
-        } else if (params.objectType === "ellipse") {
+        } else if (normalizedObjectType === "ellipse") {
           result = await this.operations.createEllipse({
             x: params.x,
             y: params.y,
@@ -453,6 +471,14 @@ export class CanvasAI {
     const pattern = commandData.pattern;
     const objectType = commandData.objectType || "rectangle";
 
+    // Map common object type aliases to supported types
+    const normalizedObjectType =
+      objectType === "square"
+        ? "rectangle"
+        : objectType === "circle"
+        ? "ellipse"
+        : objectType;
+
     // For now, we'll create a simple implementation
     // In a full implementation, you'd want to generate objects based on the pattern type
     const results = [];
@@ -473,7 +499,7 @@ export class CanvasAI {
             const y = startPos.y + row * spacing.y;
 
             let result;
-            if (objectType === "rectangle") {
+            if (normalizedObjectType === "rectangle") {
               result = await this.operations.createRectangle({
                 type: "rectangle",
                 x,
@@ -719,6 +745,275 @@ export class CanvasAI {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  }
+
+  /**
+   * Handle layout command for selected objects
+   */
+  private async handleLayoutCommand(
+    commandData: AICommand,
+    selectedObjects: string[]
+  ): Promise<AIResponse> {
+    if (selectedObjects.length < 2) {
+      return {
+        message:
+          "At least 2 objects must be selected to perform layout operations.",
+        success: false,
+        error: "Insufficient objects selected",
+      };
+    }
+
+    console.log(
+      "📐 Processing layout command:",
+      commandData,
+      "for objects:",
+      selectedObjects
+    );
+
+    try {
+      if (!commandData.layoutType) {
+        return {
+          message: "Layout type not specified",
+          success: false,
+          error: "Missing layout type",
+        };
+      }
+
+      let success = false;
+      let message = "";
+
+      switch (commandData.layoutType) {
+        case "row":
+          success = await this.handleAlignmentWithStateUpdater(
+            selectedObjects,
+            "distribute",
+            "horizontal"
+          );
+          message = success
+            ? `Successfully arranged ${selectedObjects.length} object(s) in a row`
+            : "Failed to arrange objects in a row";
+          break;
+
+        case "column":
+          success = await this.handleAlignmentWithStateUpdater(
+            selectedObjects,
+            "distribute",
+            "vertical"
+          );
+          message = success
+            ? `Successfully arranged ${selectedObjects.length} object(s) in a column`
+            : "Failed to arrange objects in a column";
+          break;
+
+        case "space":
+          // Use distribute with the specified direction or default to horizontal
+          const direction = commandData.layoutDirection || "horizontal";
+          success = await this.handleAlignmentWithStateUpdater(
+            selectedObjects,
+            "distribute",
+            direction
+          );
+          message = success
+            ? `Successfully spaced ${selectedObjects.length} object(s) evenly`
+            : "Failed to space objects evenly";
+          break;
+
+        case "align":
+          if (!commandData.alignType) {
+            return {
+              message: "Alignment type not specified",
+              success: false,
+              error: "Missing alignment type",
+            };
+          }
+          success = await this.handleAlignmentWithStateUpdater(
+            selectedObjects,
+            commandData.alignType,
+            commandData.layoutDirection || undefined
+          );
+          message = success
+            ? `Successfully aligned ${selectedObjects.length} object(s) ${commandData.alignType}`
+            : `Failed to align objects ${commandData.alignType}`;
+          break;
+
+        case "grid":
+          // For grid layout, we'll need to implement custom logic
+          // For now, fall back to a simple row arrangement
+          success = await this.handleAlignmentWithStateUpdater(
+            selectedObjects,
+            "distribute",
+            "horizontal"
+          );
+          message = success
+            ? `Successfully arranged ${selectedObjects.length} object(s) in a grid pattern`
+            : "Failed to arrange objects in a grid";
+          break;
+
+        default:
+          return {
+            message: "Unknown layout type",
+            success: false,
+            error: "Invalid layout type",
+          };
+      }
+
+      return {
+        message,
+        success,
+        commandData: commandData,
+      };
+    } catch (error) {
+      console.error("❌ Layout command failed:", error);
+      return {
+        message: "Failed to perform layout operation",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Handle alignment using stateUpdater for immediate local updates and broadcasting
+   */
+  private async handleAlignmentWithStateUpdater(
+    objectIds: string[],
+    alignType:
+      | "left"
+      | "right"
+      | "center"
+      | "top"
+      | "bottom"
+      | "middle"
+      | "distribute",
+    alignAxis?: "horizontal" | "vertical"
+  ): Promise<boolean> {
+    if (!this.stateUpdater || objectIds.length < 2) return false;
+
+    try {
+      console.log(
+        "📐 AI Alignment with stateUpdater:",
+        objectIds,
+        "type:",
+        alignType
+      );
+
+      // Get all objects to align
+      const objects = await this.operations.getObjectsByIds(objectIds);
+      if (objects.length < 2) return false;
+
+      // Determine axis if not provided
+      if (!alignAxis) {
+        if (["left", "right", "center"].includes(alignType)) {
+          alignAxis = "horizontal";
+        } else if (["top", "bottom", "middle"].includes(alignType)) {
+          alignAxis = "vertical";
+        } else {
+          alignAxis = "horizontal"; // default for distribute
+        }
+      }
+
+      const updates: Array<{ id: string; updates: Partial<CanvasObject> }> = [];
+
+      if (alignType === "distribute") {
+        // Distribute objects evenly
+        if (alignAxis === "horizontal") {
+          const sortedObjects = objects.sort((a, b) => a.x - b.x);
+          const minX = Math.min(...sortedObjects.map((obj) => obj.x));
+          const maxX = Math.max(
+            ...sortedObjects.map((obj) => obj.x + obj.width)
+          );
+          const totalWidth = maxX - minX;
+          const spacing = totalWidth / (sortedObjects.length - 1);
+
+          sortedObjects.forEach((obj, index) => {
+            const newX = minX + spacing * index - obj.width / 2;
+            updates.push({ id: obj.id, updates: { x: newX } });
+          });
+        } else {
+          const sortedObjects = objects.sort((a, b) => a.y - b.y);
+          const minY = Math.min(...sortedObjects.map((obj) => obj.y));
+          const maxY = Math.max(
+            ...sortedObjects.map((obj) => obj.y + obj.height)
+          );
+          const totalHeight = maxY - minY;
+          const spacing = totalHeight / (sortedObjects.length - 1);
+
+          sortedObjects.forEach((obj, index) => {
+            const newY = minY + spacing * index - obj.height / 2;
+            updates.push({ id: obj.id, updates: { y: newY } });
+          });
+        }
+      } else {
+        // Align to edges or center
+        if (alignAxis === "horizontal") {
+          let targetX: number;
+
+          if (alignType === "left") {
+            targetX = Math.min(...objects.map((obj) => obj.x));
+          } else if (alignType === "right") {
+            targetX = Math.max(...objects.map((obj) => obj.x + obj.width));
+          } else {
+            // center
+            const minX = Math.min(...objects.map((obj) => obj.x));
+            const maxX = Math.max(...objects.map((obj) => obj.x + obj.width));
+            targetX = (minX + maxX) / 2;
+          }
+
+          objects.forEach((obj) => {
+            let newX = obj.x;
+            if (alignType === "left") {
+              newX = targetX;
+            } else if (alignType === "right") {
+              newX = targetX - obj.width;
+            } else if (alignType === "center") {
+              newX = targetX - obj.width / 2;
+            }
+            updates.push({ id: obj.id, updates: { x: newX } });
+          });
+        } else {
+          let targetY: number;
+
+          if (alignType === "top") {
+            targetY = Math.min(...objects.map((obj) => obj.y));
+          } else if (alignType === "bottom") {
+            targetY = Math.max(...objects.map((obj) => obj.y + obj.height));
+          } else {
+            // middle
+            const minY = Math.min(...objects.map((obj) => obj.y));
+            const maxY = Math.max(...objects.map((obj) => obj.y + obj.height));
+            targetY = (minY + maxY) / 2;
+          }
+
+          objects.forEach((obj) => {
+            let newY = obj.y;
+            if (alignType === "top") {
+              newY = targetY;
+            } else if (alignType === "bottom") {
+              newY = targetY - obj.height;
+            } else if (alignType === "middle") {
+              newY = targetY - obj.height / 2;
+            }
+            updates.push({ id: obj.id, updates: { y: newY } });
+          });
+        }
+      }
+
+      // Apply all updates using stateUpdater (immediate local updates + broadcasting)
+      const updatePromises = updates.map(({ id, updates: objectUpdates }) =>
+        this.stateUpdater!.updateObject(id, objectUpdates)
+      );
+
+      const results = await Promise.all(updatePromises);
+      const successCount = results.filter((result) => result !== null).length;
+
+      console.log(
+        `✅ AI Alignment completed: ${successCount}/${updates.length} updated`
+      );
+      return successCount > 0;
+    } catch (error) {
+      console.error("❌ AI Alignment failed:", error);
+      return false;
     }
   }
 
