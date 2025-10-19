@@ -77,34 +77,14 @@ export class CanvasOperations {
 
   /**
    * Get the next available z-index for new objects
+   * Since z-index is no longer used for layering, we can use a simple counter
    * 
-   * @returns Promise<number> The next z-index value (highest existing + 1)
+   * @returns Promise<number> The next z-index value
    */
   private async getNextZIndex(): Promise<number> {
-    try {
-      const { data, error } = await this.supabase
-        .from('canvas_objects')
-        .select('z_index')
-        .eq('canvas_id', this.canvasId)
-        .order('z_index', { ascending: false })
-        .limit(1)
-
-      if (error) {
-        console.error('❌ Error getting next z-index:', error)
-        return 1 // Fallback to 1 if query fails
-      }
-
-      // If no objects exist, start with z-index 1
-      if (!data || data.length === 0) {
-        return 1
-      }
-
-      // Return highest z-index + 1
-      return (data[0].z_index || 0) + 1
-    } catch (error) {
-      console.error('❌ Failed to get next z-index:', error)
-      return 1
-    }
+    // Since z-index is no longer used for layering, we can just return null
+    // or a simple counter. For now, let's return null to indicate it's unused.
+    return 0 // Will be set to null in the database
   }
 
   /**
@@ -122,9 +102,6 @@ export class CanvasOperations {
     try {
       console.log('📦 Creating rectangle:', data)
       
-      // Get next z-index if not provided
-      const zIndex = data.z_index || await this.getNextZIndex()
-      
       const objectData = {
         canvas_id: this.canvasId,
         type: 'rectangle' as const,
@@ -134,7 +111,7 @@ export class CanvasOperations {
         height: data.height,
         color: data.color || '#000000',
         rotation: data.rotation || 0,
-        z_index: zIndex,
+        z_index: null, // No longer using z-index for layering
         owner: this.user.id, // Creator automatically owns the object
         created_by: this.user.id,
       }
@@ -180,9 +157,6 @@ export class CanvasOperations {
     try {
       console.log('🔵 Creating ellipse:', data)
       
-      // Get next z-index if not provided
-      const zIndex = data.z_index || await this.getNextZIndex()
-      
       const objectData = {
         canvas_id: this.canvasId,
         type: 'ellipse' as const,
@@ -192,7 +166,7 @@ export class CanvasOperations {
         height: data.height,
         color: data.color || '#000000',
         rotation: data.rotation || 0,
-        z_index: zIndex,
+        z_index: null, // No longer using z-index for layering
         owner: this.user.id, // Creator automatically owns the object
         created_by: this.user.id,
       }
