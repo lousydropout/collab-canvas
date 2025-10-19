@@ -458,6 +458,30 @@ export function useRealtime({
         isReconnectingRef.current = false;
       }
     }, delay);
+
+    // Add a maximum reconnection timeout to prevent getting stuck
+    const maxReconnectTimeout = setTimeout(() => {
+      if (isReconnectingRef.current) {
+        console.log("⚠️ Maximum reconnection timeout reached, forcing reset...");
+        isReconnectingRef.current = false;
+        setState((prev) => ({
+          ...prev,
+          connectionStatus: "disconnected",
+          error: "Reconnection timeout - please refresh the page",
+        }));
+      }
+    }, 60000); // 60 seconds max
+
+    // Store the max timeout ID for cleanup
+    const maxTimeoutId = maxReconnectTimeout;
+    
+    // Override the clear method to also clear the max timeout
+    const originalClear = reconnectTimeoutRef.current;
+    if (originalClear) {
+      reconnectTimeoutRef.current = originalClear;
+      // Store the max timeout ID for potential cleanup
+      (reconnectTimeoutRef.current as any).maxTimeoutId = maxTimeoutId;
+    }
   }, []);
 
   // Update selected objects in presence
@@ -597,6 +621,17 @@ export function useRealtime({
         // Only process if this is an ownership change
         const { new: newRecord, old: oldRecord } = payload;
         if (newRecord && oldRecord && newRecord.owner !== oldRecord.owner) {
+          // Skip processing if this is a rapid change from undefined to a user ID
+          // This prevents infinite loops during object creation
+          if (oldRecord.owner === undefined && newRecord.owner && newRecord.owner !== "all") {
+            console.log(
+              "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
+              newRecord.id,
+              `${oldRecord.owner} → ${newRecord.owner}`
+            );
+            return;
+          }
+
           console.log(
             "🏷️ Ownership change detected:",
             `${oldRecord.owner} → ${newRecord.owner}`

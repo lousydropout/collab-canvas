@@ -582,6 +582,17 @@ export function useOwnership({
 
       // Only process ownership changes (when owner field changes)
       if (newOwner !== oldOwner) {
+        // Skip processing if this is a rapid change from undefined to a user ID
+        // This prevents infinite loops during object creation
+        if (oldOwner === undefined && newOwner && newOwner !== "all") {
+          console.log(
+            "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
+            objectId,
+            `${oldOwner} → ${newOwner}`
+          );
+          return;
+        }
+
         console.log(
           "📥 Ownership change via realtime:",
           objectId,

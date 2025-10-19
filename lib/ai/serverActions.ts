@@ -240,6 +240,10 @@ LAYOUT OBJECTS:
   "alignType": "left" | "right" | "center" | "top" | "bottom" | "middle" | null  // required for align layout
 }
 
+**Alignment Axis Mapping:**
+- "left", "right", "center" -> vertical alignment (same X coordinate, vertical line)
+- "top", "bottom", "middle" -> horizontal alignment (same Y coordinate, horizontal line)
+
 **Examples:**
 - "create a rectangle" -> single object template
 - "create a blue square" -> single object template (square = rectangle)
@@ -254,7 +258,12 @@ LAYOUT OBJECTS:
 - "arrange selected in a column" -> layout template (column)
 - "create a 2x3 grid with selected" -> layout template (grid)
 - "space selected objects evenly" -> layout template (space)
-- "align selected to left" -> layout template (align)
+- "align selected to left" -> layout template (align) with alignType: "left"
+- "align selected to right" -> layout template (align) with alignType: "right"
+- "align selected to center" -> layout template (align) with alignType: "center"
+- "align selected to top" -> layout template (align) with alignType: "top"
+- "align selected to bottom" -> layout template (align) with alignType: "bottom"
+- "align selected to middle" -> layout template (align) with alignType: "middle"
 
 **IMPORTANT:**
 - Use "args" for 2–10 repeated objects with automatic spreading.
