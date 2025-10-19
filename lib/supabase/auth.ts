@@ -1,21 +1,25 @@
-import { supabase } from './client'
-import type { User, AuthError } from '@supabase/supabase-js'
+import { supabase } from "@/lib/supabase/client";
+import type { User, AuthError } from "@supabase/supabase-js";
 
 export interface AuthResult {
-  user: User | null
-  error: AuthError | null
+  user: User | null;
+  error: AuthError | null;
 }
 
 export interface Profile {
-  id: string
-  display_name: string
-  created_at: string
-  updated_at: string
+  id: string;
+  display_name: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export class AuthService {
   // Sign up new user
-  static async signUp(email: string, password: string, displayName: string): Promise<AuthResult> {
+  static async signUp(
+    email: string,
+    password: string,
+    displayName: string
+  ): Promise<AuthResult> {
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -25,17 +29,17 @@ export class AuthService {
             display_name: displayName,
           },
         },
-      })
+      });
 
       return {
         user: data.user,
         error,
-      }
+      };
     } catch (error) {
       return {
         user: null,
         error: error as AuthError,
-      }
+      };
     }
   }
 
@@ -45,83 +49,86 @@ export class AuthService {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      })
+      });
 
       return {
         user: data.user,
         error,
-      }
+      };
     } catch (error) {
       return {
         user: null,
         error: error as AuthError,
-      }
+      };
     }
   }
 
   // Sign out current user
   static async signOut(): Promise<{ error: AuthError | null }> {
-    const { error } = await supabase.auth.signOut()
-    return { error }
+    const { error } = await supabase.auth.signOut();
+    return { error };
   }
 
   // Get current user
   static async getCurrentUser(): Promise<User | null> {
-    const { data } = await supabase.auth.getUser()
-    return data.user
+    const { data } = await supabase.auth.getUser();
+    return data.user;
   }
 
   // Get current session
   static async getCurrentSession() {
-    const { data } = await supabase.auth.getSession()
-    return data.session
+    const { data } = await supabase.auth.getSession();
+    return data.session;
   }
 
   // Get user profile
   static async getProfile(userId: string): Promise<Profile | null> {
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
       if (error) {
-        console.error('Error fetching profile:', error)
-        return null
+        console.error("Error fetching profile:", error);
+        return null;
       }
 
-      return data
+      return data;
     } catch (error) {
-      console.error('Error fetching profile:', error)
-      return null
+      console.error("Error fetching profile:", error);
+      return null;
     }
   }
 
   // Update user profile
-  static async updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile | null> {
+  static async updateProfile(
+    userId: string,
+    updates: Partial<Profile>
+  ): Promise<Profile | null> {
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update(updates)
-        .eq('id', userId)
+        .eq("id", userId)
         .select()
-        .single()
+        .single();
 
       if (error) {
-        console.error('Error updating profile:', error)
-        return null
+        console.error("Error updating profile:", error);
+        return null;
       }
 
-      return data
+      return data;
     } catch (error) {
-      console.error('Error updating profile:', error)
-      return null
+      console.error("Error updating profile:", error);
+      return null;
     }
   }
 
   // Listen to auth changes
   static onAuthStateChange(callback: (event: string, session: any) => void) {
-    return supabase.auth.onAuthStateChange(callback)
+    return supabase.auth.onAuthStateChange(callback);
   }
 }

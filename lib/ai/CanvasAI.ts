@@ -1,49 +1,60 @@
 /**
  * Simplified Canvas AI Service
- * 
+ *
  * This service provides simple intent detection for object creation.
  * Detects if user wants to create rectangle or ellipse and creates with defaults.
- * 
+ *
  * Features:
  * - Intent detection via server action
  * - Default object creation
  * - Error handling and user feedback
  */
 
-import { CanvasOperations } from '@/lib/canvas/CanvasOperations'
-import { CanvasSize } from '@/lib/canvas/coordinateUtils'
-import { CanvasObject } from '@/types/canvas'
-import { detectObjectIntent, AICommand, AIContext } from './serverActions'
+import { CanvasOperations } from "@/lib/canvas/CanvasOperations";
+import { CanvasSize } from "@/lib/canvas/coordinateUtils";
+import { CanvasObject } from "@/types/canvas";
+import {
+  detectObjectIntent,
+  AICommand,
+  AIContext,
+} from "@/lib/ai/serverActions";
 
 // Default values for object creation
-const DEFAULT_SIZE = { width: 200, height: 150 }
-const DEFAULT_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+const DEFAULT_SIZE = { width: 200, height: 150 };
 
 export interface AIResponse {
-  message: string
-  success: boolean
-  error?: string
-  commandData?: AICommand
+  message: string;
+  success: boolean;
+  error?: string;
+  commandData?: AICommand;
 }
 
 export interface CanvasStateUpdater {
-  addObject: (object: CanvasObject) => void
-  updateObject: (id: string, updates: Partial<CanvasObject>) => Promise<CanvasObject | null>
-  initializeOwnership: (object: CanvasObject, userId: string, displayName?: string) => Promise<void>
-  claimObject: (objectId: string) => Promise<boolean>
+  addObject: (object: CanvasObject) => void;
+  updateObject: (
+    id: string,
+    updates: Partial<CanvasObject>
+  ) => Promise<CanvasObject | null>;
+  initializeOwnership: (
+    object: CanvasObject,
+    userId: string,
+    displayName?: string
+  ) => Promise<void>;
+  claimObject: (objectId: string) => Promise<boolean>;
 }
 
 /**
  * Simplified Canvas AI Service Class
- * 
+ *
  * Handles simple intent detection and default object creation.
  */
 export class CanvasAI {
-  private operations: CanvasOperations
-  private canvasSize: CanvasSize
-  private stateUpdater?: CanvasStateUpdater
-  private currentColor: string = '#000000'
-  private viewportInfo: { scale: number; position: { x: number; y: number } } = { scale: 1, position: { x: 0, y: 0 } }
+  private operations: CanvasOperations;
+  private canvasSize: CanvasSize;
+  private stateUpdater?: CanvasStateUpdater;
+  private currentColor: string = "#000000";
+  private viewportInfo: { scale: number; position: { x: number; y: number } } =
+    { scale: 1, position: { x: 0, y: 0 } };
 
   constructor(
     operations: CanvasOperations,
@@ -52,11 +63,11 @@ export class CanvasAI {
     currentColor?: string,
     viewportInfo?: { scale: number; position: { x: number; y: number } }
   ) {
-    this.operations = operations
-    this.canvasSize = canvasSize
-    this.stateUpdater = stateUpdater
-    if (currentColor) this.currentColor = currentColor
-    if (viewportInfo) this.viewportInfo = viewportInfo
+    this.operations = operations;
+    this.canvasSize = canvasSize;
+    this.stateUpdater = stateUpdater;
+    if (currentColor) this.currentColor = currentColor;
+    if (viewportInfo) this.viewportInfo = viewportInfo;
   }
 
   /**
@@ -64,21 +75,26 @@ export class CanvasAI {
    */
   updateCurrentColor(color: string): void {
     if (this.currentColor !== color) {
-      this.currentColor = color
-      console.log('🎨 CanvasAI updated current color:', color)
+      this.currentColor = color;
+      console.log("🎨 CanvasAI updated current color:", color);
     }
   }
 
   /**
    * Update viewport information
    */
-  updateViewportInfo(info: { scale: number; position: { x: number; y: number } }): void {
+  updateViewportInfo(info: {
+    scale: number;
+    position: { x: number; y: number };
+  }): void {
     // Only update if the values have actually changed
-    if (this.viewportInfo.scale !== info.scale || 
-        this.viewportInfo.position.x !== info.position.x || 
-        this.viewportInfo.position.y !== info.position.y) {
-      this.viewportInfo = info
-      console.log('📐 CanvasAI updated viewport info:', info)
+    if (
+      this.viewportInfo.scale !== info.scale ||
+      this.viewportInfo.position.x !== info.position.x ||
+      this.viewportInfo.position.y !== info.position.y
+    ) {
+      this.viewportInfo = info;
+      console.log("📐 CanvasAI updated viewport info:", info);
     }
   }
 
@@ -86,21 +102,28 @@ export class CanvasAI {
    * Calculate the center of the visible viewport in canvas coordinates
    */
   private getViewportCenter(): { x: number; y: number } {
-    const centerX = (this.canvasSize.width / 2 - this.viewportInfo.position.x) / this.viewportInfo.scale
-    const centerY = (this.canvasSize.height / 2 - this.viewportInfo.position.y) / this.viewportInfo.scale
-    return { x: centerX, y: centerY }
+    const centerX =
+      (this.canvasSize.width / 2 - this.viewportInfo.position.x) /
+      this.viewportInfo.scale;
+    const centerY =
+      (this.canvasSize.height / 2 - this.viewportInfo.position.y) /
+      this.viewportInfo.scale;
+    return { x: centerX, y: centerY };
   }
 
   /**
    * Process a user message and create object if intent detected
-   * 
+   *
    * @param message - User's natural language command
    * @param selectedObjects - Array of currently selected object IDs
    * @returns Promise<AIResponse> - AI's response and operation result
    */
-  async processMessage(message: string, selectedObjects: string[] = []): Promise<AIResponse> {
+  async processMessage(
+    message: string,
+    selectedObjects: string[] = []
+  ): Promise<AIResponse> {
     try {
-      console.log('🤖 Processing AI message:', message)
+      console.log("🤖 Processing AI message:", message);
 
       // Create context for the AI
       const context: AIContext = {
@@ -109,59 +132,63 @@ export class CanvasAI {
         viewportHeight: this.canvasSize.height / this.viewportInfo.scale,
         viewportTopLeft: {
           x: -this.viewportInfo.position.x / this.viewportInfo.scale,
-          y: -this.viewportInfo.position.y / this.viewportInfo.scale
-        }
-      }
+          y: -this.viewportInfo.position.y / this.viewportInfo.scale,
+        },
+      };
 
-      console.log('📊 AI Context:', context)
+      console.log("📊 AI Context:", context);
 
       // Call the server action for intent detection
-      const result = await detectObjectIntent(message, context)
-      console.log('✅ AI intent detection result:', result)
+      const result = await detectObjectIntent(message, context);
+      console.log("✅ AI intent detection result:", result);
 
       if (!result.success || !result.commandData) {
-        console.log('❌ Server action failed:', result.error)
+        console.log("❌ Server action failed:", result.error);
         return {
-          message: result.error || 'Could not understand command',
+          message: result.error || "Could not understand command",
           success: false,
-          error: result.error
-        }
+          error: result.error,
+        };
       }
 
-      const commandData = result.commandData
+      const commandData = result.commandData;
 
-      if (commandData.command === 'create') {
-        return await this.handleCreateCommand(commandData)
-      } else if (commandData.command === 'modify') {
-        return await this.handleModifyCommand(commandData, selectedObjects)
+      if (commandData.command === "create") {
+        return await this.handleCreateCommand(commandData);
+      } else if (commandData.command === "modify") {
+        return await this.handleModifyCommand(commandData, selectedObjects);
       } else {
         return {
-          message: 'No command detected. Try "create a rectangle" or "add an ellipse"',
-          success: true
-        }
+          message:
+            'No command detected. Try "create a rectangle" or "add an ellipse"',
+          success: true,
+        };
       }
     } catch (error) {
-      console.error('❌ AI message processing failed:', error)
-      
-      let errorMessage = 'Sorry, I encountered an error processing your request.'
-      
+      console.error("❌ AI message processing failed:", error);
+
+      let errorMessage =
+        "Sorry, I encountered an error processing your request.";
+
       if (error instanceof Error) {
-        if (error.message.includes('API key')) {
-          errorMessage = 'OpenAI API key not configured. Please check your environment variables.'
-        } else if (error.message.includes('rate limit')) {
-          errorMessage = 'Rate limit exceeded. Please try again in a moment.'
-        } else if (error.message.includes('quota')) {
-          errorMessage = 'OpenAI quota exceeded. Please check your account limits.'
+        if (error.message.includes("API key")) {
+          errorMessage =
+            "OpenAI API key not configured. Please check your environment variables.";
+        } else if (error.message.includes("rate limit")) {
+          errorMessage = "Rate limit exceeded. Please try again in a moment.";
+        } else if (error.message.includes("quota")) {
+          errorMessage =
+            "OpenAI quota exceeded. Please check your account limits.";
         } else {
-          errorMessage = `Error: ${error.message}`
+          errorMessage = `Error: ${error.message}`;
         }
       }
 
       return {
         message: errorMessage,
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 
@@ -169,48 +196,54 @@ export class CanvasAI {
    * Apply default values to command data
    */
   private applyDefaults(commandData: AICommand): {
-    command: 'create' | 'modify'
-    objectType: 'rectangle' | 'ellipse'
-    x: number
-    y: number
-    width: number
-    height: number
-    color: string
-    deltaX: null
-    deltaY: null
-    newX: null
-    newY: null
-    scaleBy: null
-    newWidth: null
-    newHeight: null
+    command: "create" | "modify";
+    objectType: "rectangle" | "ellipse";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+    deltaX: null;
+    deltaY: null;
+    newX: null;
+    newY: null;
+    scaleBy: null;
+    newWidth: null;
+    newHeight: null;
   } {
-    const center = this.getViewportCenter()
-    
+    const center = this.getViewportCenter();
+
     // Use AI-provided values or smart defaults based on object type
-    let width = commandData.width ?? DEFAULT_SIZE.width
-    let height = commandData.height ?? DEFAULT_SIZE.height
-    
+    let width = commandData.width ?? DEFAULT_SIZE.width;
+    let height = commandData.height ?? DEFAULT_SIZE.height;
+
     // If AI provided specific values, use them; otherwise apply viewport-relative defaults
     if (commandData.width === null && commandData.height === null) {
-      if (commandData.objectType === 'ellipse') {
+      if (commandData.objectType === "ellipse") {
         // Default ellipse/circle should be square, 10% of viewport width
-        const size = Math.round(this.canvasSize.width * 0.1)
-        width = size
-        height = size
+        const size = Math.round(this.canvasSize.width * 0.1);
+        width = size;
+        height = size;
       } else {
         // Default rectangle, 10% of viewport dimensions
-        width = Math.round(this.canvasSize.width * 0.1)
-        height = Math.round(this.canvasSize.height * 0.1)
+        width = Math.round(this.canvasSize.width * 0.1);
+        height = Math.round(this.canvasSize.height * 0.1);
       }
     }
-    
+
     // Convert from center coordinates to top-left coordinates
-    const x = commandData.x !== null && commandData.x !== undefined ? commandData.x - width / 2 : center.x - width / 2
-    const y = commandData.y !== null && commandData.y !== undefined ? commandData.y - height / 2 : center.y - height / 2
-    
+    const x =
+      commandData.x !== null && commandData.x !== undefined
+        ? commandData.x - width / 2
+        : center.x - width / 2;
+    const y =
+      commandData.y !== null && commandData.y !== undefined
+        ? commandData.y - height / 2
+        : center.y - height / 2;
+
     return {
-      command: commandData.command || 'create',
-      objectType: commandData.objectType || 'rectangle',
+      command: commandData.command || "create",
+      objectType: commandData.objectType || "rectangle",
       x,
       y,
       width,
@@ -222,205 +255,234 @@ export class CanvasAI {
       newY: null,
       scaleBy: null,
       newWidth: null,
-      newHeight: null
-    }
+      newHeight: null,
+    };
   }
 
   /**
    * Handle create command with applied defaults
    */
-  private async handleCreateCommand(commandData: AICommand): Promise<AIResponse> {
-    console.log('🎨 Creating objects with command data:', commandData)
-    
+  private async handleCreateCommand(
+    commandData: AICommand
+  ): Promise<AIResponse> {
+    console.log("🎨 Creating objects with command data:", commandData);
+
     // Handle batch creation with args array
     if (commandData.args && commandData.args.length > 0) {
-      return await this.handleBatchCreation(commandData.args)
+      return await this.handleBatchCreation(commandData.args);
     }
-    
+
     // Handle pattern creation
     if (commandData.pattern) {
-      return await this.handlePatternCreation(commandData)
+      return await this.handlePatternCreation(commandData);
     }
-    
+
     // Handle single object creation
-    const params = this.applyDefaults(commandData)
-    console.log('🎨 Creating single object with params:', params)
-    
-    if (params.objectType === 'rectangle') {
+    const params = this.applyDefaults(commandData);
+    console.log("🎨 Creating single object with params:", params);
+
+    if (params.objectType === "rectangle") {
       const result = await this.operations.createRectangle({
-        type: 'rectangle',
+        type: "rectangle",
         x: params.x,
         y: params.y,
         width: params.width,
         height: params.height,
         color: params.color,
-        rotation: 0
-      })
-      console.log('🎨 createRectangle result:', result)
-      
+        rotation: 0,
+      });
+      console.log("🎨 createRectangle result:", result);
+
       // Initialize ownership and add to local state if state updater is available
       if (result && this.stateUpdater) {
-        console.log('🎨 Initializing ownership for rectangle:', result.id)
-        await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+        console.log("🎨 Initializing ownership for rectangle:", result.id);
+        await this.stateUpdater.initializeOwnership(
+          result,
+          this.operations["user"].id,
+          this.operations["user"].email
+        );
         // Add to local state immediately (CanvasOperations.createRectangle already broadcasts)
-        this.stateUpdater.addObject(result)
+        this.stateUpdater.addObject(result);
       }
-      
+
       return {
-        message: `Successfully created a rectangle at (${Math.round(params.x)}, ${Math.round(params.y)}) with size ${params.width}x${params.height}`,
+        message: `Successfully created a rectangle at (${Math.round(
+          params.x
+        )}, ${Math.round(params.y)}) with size ${params.width}x${
+          params.height
+        }`,
         success: true,
-        commandData: params
-      }
-    } else if (params.objectType === 'ellipse') {
+        commandData: params,
+      };
+    } else if (params.objectType === "ellipse") {
       const result = await this.operations.createEllipse({
         x: params.x,
         y: params.y,
         width: params.width,
         height: params.height,
         color: params.color,
-        rotation: 0
-      })
-      console.log('🎨 createEllipse result:', result)
-      
+        rotation: 0,
+      });
+      console.log("🎨 createEllipse result:", result);
+
       // Initialize ownership and add to local state if state updater is available
       if (result && this.stateUpdater) {
-        console.log('🎨 Initializing ownership for ellipse:', result.id)
-        await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
+        console.log("🎨 Initializing ownership for ellipse:", result.id);
+        await this.stateUpdater.initializeOwnership(
+          result,
+          this.operations["user"].id,
+          this.operations["user"].email
+        );
         // Add to local state immediately (CanvasOperations.createEllipse already broadcasts)
-        this.stateUpdater.addObject(result)
+        this.stateUpdater.addObject(result);
       }
-      
+
       return {
-        message: `Successfully created an ellipse at (${Math.round(params.x)}, ${Math.round(params.y)}) with size ${params.width}x${params.height}`,
+        message: `Successfully created an ellipse at (${Math.round(
+          params.x
+        )}, ${Math.round(params.y)}) with size ${params.width}x${
+          params.height
+        }`,
         success: true,
-        commandData: params
-      }
+        commandData: params,
+      };
     } else {
       return {
-        message: 'Unknown object type',
+        message: "Unknown object type",
         success: false,
-        error: 'Invalid object type'
-      }
+        error: "Invalid object type",
+      };
     }
   }
 
   /**
    * Handle batch creation with args array
    */
-  private async handleBatchCreation(args: Array<{
-    objectType: 'rectangle' | 'ellipse'
-    x?: number
-    y?: number
-    width?: number
-    height?: number
-    color?: string
-  }>): Promise<AIResponse> {
-    console.log('🎨 Creating batch of objects:', args.length)
-    
-    const results = []
-    const errors = []
-    
+  private async handleBatchCreation(
+    args: Array<{
+      objectType: "rectangle" | "ellipse";
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      color?: string;
+    }>
+  ): Promise<AIResponse> {
+    console.log("🎨 Creating batch of objects:", args.length);
+
+    const results = [];
+    const errors = [];
+
     for (const arg of args) {
       try {
         const params = this.applyDefaults({
-          command: 'create',
+          command: "create",
           objectType: arg.objectType,
           x: arg.x ?? null,
           y: arg.y ?? null,
           width: arg.width ?? null,
           height: arg.height ?? null,
-          color: arg.color ?? null
-        })
-        
-        let result
-        if (params.objectType === 'rectangle') {
+          color: arg.color ?? null,
+        });
+
+        let result;
+        if (params.objectType === "rectangle") {
           result = await this.operations.createRectangle({
-            type: 'rectangle',
+            type: "rectangle",
             x: params.x,
             y: params.y,
             width: params.width,
             height: params.height,
             color: params.color,
-            rotation: 0
-          })
-        } else if (params.objectType === 'ellipse') {
+            rotation: 0,
+          });
+        } else if (params.objectType === "ellipse") {
           result = await this.operations.createEllipse({
             x: params.x,
             y: params.y,
             width: params.width,
             height: params.height,
             color: params.color,
-            rotation: 0
-          })
+            rotation: 0,
+          });
         }
-        
+
         if (result && this.stateUpdater) {
-          await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
-          this.stateUpdater.addObject(result)
+          await this.stateUpdater.initializeOwnership(
+            result,
+            this.operations["user"].id,
+            this.operations["user"].email
+          );
+          this.stateUpdater.addObject(result);
         }
-        
-        results.push(result)
+
+        results.push(result);
       } catch (error) {
-        console.error('❌ Error creating object in batch:', error)
-        errors.push(error)
+        console.error("❌ Error creating object in batch:", error);
+        errors.push(error);
       }
     }
-    
-    const successCount = results.filter(r => r !== null).length
-    
+
+    const successCount = results.filter((r) => r !== null).length;
+
     return {
-      message: `Successfully created ${successCount} objects${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
+      message: `Successfully created ${successCount} objects${
+        errors.length > 0 ? ` (${errors.length} failed)` : ""
+      }`,
       success: successCount > 0,
-      commandData: { command: 'create', args }
-    }
+      commandData: { command: "create", args },
+    };
   }
 
   /**
    * Handle pattern creation
    */
-  private async handlePatternCreation(commandData: AICommand): Promise<AIResponse> {
-    console.log('🎨 Creating pattern:', commandData.pattern)
-    
+  private async handlePatternCreation(
+    commandData: AICommand
+  ): Promise<AIResponse> {
+    console.log("🎨 Creating pattern:", commandData.pattern);
+
     if (!commandData.pattern) {
       return {
-        message: 'No pattern specified',
+        message: "No pattern specified",
         success: false,
-        error: 'Missing pattern data'
-      }
+        error: "Missing pattern data",
+      };
     }
-    
-    const pattern = commandData.pattern
-    const objectType = commandData.objectType || 'rectangle'
-    
+
+    const pattern = commandData.pattern;
+    const objectType = commandData.objectType || "rectangle";
+
     // For now, we'll create a simple implementation
     // In a full implementation, you'd want to generate objects based on the pattern type
-    const results = []
-    
+    const results = [];
+
     try {
       // Simple grid pattern implementation
-      if (pattern.type === 'grid' && pattern.rows && pattern.columns) {
-        const spacing = pattern.spacing || { x: 50, y: 50 }
-        const startPos = pattern.startPosition || { x: 100, y: 100 }
-        const width = pattern.width || Math.round(this.canvasSize.width * 0.05)
-        const height = pattern.height || Math.round(this.canvasSize.height * 0.05)
-        const color = pattern.color || '#ff0000'
-        
+      if (pattern.type === "grid" && pattern.rows && pattern.columns) {
+        const spacing = pattern.spacing || { x: 50, y: 50 };
+        const startPos = pattern.startPosition || { x: 100, y: 100 };
+        const width = pattern.width || Math.round(this.canvasSize.width * 0.05);
+        const height =
+          pattern.height || Math.round(this.canvasSize.height * 0.05);
+        const color = pattern.color || "#ff0000";
+
         for (let row = 0; row < pattern.rows; row++) {
           for (let col = 0; col < pattern.columns; col++) {
-            const x = startPos.x + col * spacing.x
-            const y = startPos.y + row * spacing.y
-            
-            let result
-            if (objectType === 'rectangle') {
+            const x = startPos.x + col * spacing.x;
+            const y = startPos.y + row * spacing.y;
+
+            let result;
+            if (objectType === "rectangle") {
               result = await this.operations.createRectangle({
-                type: 'rectangle',
+                type: "rectangle",
                 x,
                 y,
                 width,
                 height,
                 color,
-                rotation: 0
-              })
+                rotation: 0,
+              });
             } else {
               result = await this.operations.createEllipse({
                 x,
@@ -428,40 +490,45 @@ export class CanvasAI {
                 width,
                 height,
                 color,
-                rotation: 0
-              })
+                rotation: 0,
+              });
             }
-            
+
             if (result && this.stateUpdater) {
-              await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
-              this.stateUpdater.addObject(result)
+              await this.stateUpdater.initializeOwnership(
+                result,
+                this.operations["user"].id,
+                this.operations["user"].email
+              );
+              this.stateUpdater.addObject(result);
             }
-            
-            results.push(result)
+
+            results.push(result);
           }
         }
       } else {
         // For other pattern types, create a simple implementation
-        const count = pattern.count || 10
-        const width = pattern.width || Math.round(this.canvasSize.width * 0.05)
-        const height = pattern.height || Math.round(this.canvasSize.height * 0.05)
-        const color = pattern.color || '#ff0000'
-        
+        const count = pattern.count || 10;
+        const width = pattern.width || Math.round(this.canvasSize.width * 0.05);
+        const height =
+          pattern.height || Math.round(this.canvasSize.height * 0.05);
+        const color = pattern.color || "#ff0000";
+
         for (let i = 0; i < count; i++) {
-          const x = Math.random() * (this.canvasSize.width - width)
-          const y = Math.random() * (this.canvasSize.height - height)
-          
-          let result
-          if (objectType === 'rectangle') {
+          const x = Math.random() * (this.canvasSize.width - width);
+          const y = Math.random() * (this.canvasSize.height - height);
+
+          let result;
+          if (objectType === "rectangle") {
             result = await this.operations.createRectangle({
-              type: 'rectangle',
+              type: "rectangle",
               x,
               y,
               width,
               height,
               color,
-              rotation: 0
-            })
+              rotation: 0,
+            });
           } else {
             result = await this.operations.createEllipse({
               x,
@@ -469,152 +536,189 @@ export class CanvasAI {
               width,
               height,
               color,
-              rotation: 0
-            })
+              rotation: 0,
+            });
           }
-          
+
           if (result && this.stateUpdater) {
-            await this.stateUpdater.initializeOwnership(result, this.operations['user'].id, this.operations['user'].email)
-            this.stateUpdater.addObject(result)
+            await this.stateUpdater.initializeOwnership(
+              result,
+              this.operations["user"].id,
+              this.operations["user"].email
+            );
+            this.stateUpdater.addObject(result);
           }
-          
-          results.push(result)
+
+          results.push(result);
         }
       }
-      
-      const successCount = results.filter(r => r !== null).length
-      
+
+      const successCount = results.filter((r) => r !== null).length;
+
       return {
         message: `Successfully created ${successCount} objects in ${pattern.type} pattern`,
         success: successCount > 0,
-        commandData
-      }
+        commandData,
+      };
     } catch (error) {
-      console.error('❌ Error creating pattern:', error)
+      console.error("❌ Error creating pattern:", error);
       return {
-        message: 'Failed to create pattern',
+        message: "Failed to create pattern",
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 
   /**
    * Handle modify command for selected objects
    */
-  private async handleModifyCommand(commandData: AICommand, selectedObjects: string[]): Promise<AIResponse> {
+  private async handleModifyCommand(
+    commandData: AICommand,
+    selectedObjects: string[]
+  ): Promise<AIResponse> {
     if (selectedObjects.length === 0) {
       return {
-        message: 'No objects selected. Please select objects first before modifying them.',
+        message:
+          "No objects selected. Please select objects first before modifying them.",
         success: false,
-        error: 'No objects selected'
-      }
+        error: "No objects selected",
+      };
     }
 
-    console.log('🔧 Modifying objects:', selectedObjects, 'with command:', commandData)
+    console.log(
+      "🔧 Modifying objects:",
+      selectedObjects,
+      "with command:",
+      commandData
+    );
 
     try {
-      const results = []
-      
+      const results = [];
+
       for (const objectId of selectedObjects) {
         // Get current object properties
-        const currentObject = await this.operations.getObject(objectId)
+        const currentObject = await this.operations.getObject(objectId);
         if (!currentObject) {
-          console.error(`❌ Object ${objectId} not found`)
-          continue
+          console.error(`❌ Object ${objectId} not found`);
+          continue;
         }
 
         // Check if object is already owned by current user, otherwise claim it
         if (this.stateUpdater) {
           // If object is already owned by current user, no need to claim
-          if (currentObject.owner === this.operations['user'].id) {
-            console.log(`✅ Object ${objectId} already owned by current user - proceeding with modification`)
+          if (currentObject.owner === this.operations["user"].id) {
+            console.log(
+              `✅ Object ${objectId} already owned by current user - proceeding with modification`
+            );
           } else {
-            console.log(`🏷️ Attempting to claim object ${objectId} for AI modification`)
-            const claimSucceeded = await this.stateUpdater.claimObject(objectId)
+            console.log(
+              `🏷️ Attempting to claim object ${objectId} for AI modification`
+            );
+            const claimSucceeded = await this.stateUpdater.claimObject(
+              objectId
+            );
             if (!claimSucceeded) {
-              console.error(`❌ Failed to claim object ${objectId} - skipping modification`)
-              continue
+              console.error(
+                `❌ Failed to claim object ${objectId} - skipping modification`
+              );
+              continue;
             }
-            console.log(`✅ Successfully claimed object ${objectId}`)
+            console.log(`✅ Successfully claimed object ${objectId}`);
           }
         }
 
-        const modifications: Partial<CanvasObject> = {}
-        
+        const modifications: Partial<CanvasObject> = {};
+
         // Apply delta position changes (relative movement)
-        if (commandData.deltaX !== null && commandData.deltaX !== undefined && commandData.deltaX !== 0) {
-          modifications.x = currentObject.x + commandData.deltaX
+        if (
+          commandData.deltaX !== null &&
+          commandData.deltaX !== undefined &&
+          commandData.deltaX !== 0
+        ) {
+          modifications.x = currentObject.x + commandData.deltaX;
         }
-        if (commandData.deltaY !== null && commandData.deltaY !== undefined && commandData.deltaY !== 0) {
-          modifications.y = currentObject.y + commandData.deltaY
+        if (
+          commandData.deltaY !== null &&
+          commandData.deltaY !== undefined &&
+          commandData.deltaY !== 0
+        ) {
+          modifications.y = currentObject.y + commandData.deltaY;
         }
-        
+
         // Apply absolute position changes (override deltas if both present)
         if (commandData.newX !== null) {
-          modifications.x = commandData.newX
+          modifications.x = commandData.newX;
         }
         if (commandData.newY !== null) {
-          modifications.y = commandData.newY
+          modifications.y = commandData.newY;
         }
-        
+
         // Apply scaling (proportional size changes)
-        if (commandData.scaleBy !== null && commandData.scaleBy !== undefined && commandData.scaleBy !== 0) {
-          modifications.width = currentObject.width * (1 + commandData.scaleBy)
-          modifications.height = currentObject.height * (1 + commandData.scaleBy)
+        if (
+          commandData.scaleBy !== null &&
+          commandData.scaleBy !== undefined &&
+          commandData.scaleBy !== 0
+        ) {
+          modifications.width = currentObject.width * (1 + commandData.scaleBy);
+          modifications.height =
+            currentObject.height * (1 + commandData.scaleBy);
         }
-        
+
         // Apply color change
         if (commandData.color !== null) {
-          modifications.color = commandData.color
+          modifications.color = commandData.color;
         }
-        
+
         // Apply specific size changes (override scaling if both present)
         if (commandData.newWidth !== null) {
-          modifications.width = commandData.newWidth
+          modifications.width = commandData.newWidth;
         }
         if (commandData.newHeight !== null) {
-          modifications.height = commandData.newHeight
+          modifications.height = commandData.newHeight;
         }
-        
+
         // Only apply modifications if there are any
         if (Object.keys(modifications).length > 0) {
-          console.log(`🔧 Applying modifications to ${objectId}:`, modifications)
-          
+          console.log(
+            `🔧 Applying modifications to ${objectId}:`,
+            modifications
+          );
+
           // Use stateUpdater's updateObject method which includes optimistic updates
-          const result = this.stateUpdater 
+          const result = this.stateUpdater
             ? await this.stateUpdater.updateObject(objectId, modifications)
-            : await this.operations.updateObject(objectId, modifications)
-            
-          console.log(`🔧 Update result for ${objectId}:`, result)
+            : await this.operations.updateObject(objectId, modifications);
+
+          console.log(`🔧 Update result for ${objectId}:`, result);
           if (result) {
-            results.push(result)
+            results.push(result);
           }
         } else {
-          console.log(`🔧 No modifications to apply for ${objectId}`)
+          console.log(`🔧 No modifications to apply for ${objectId}`);
         }
       }
-      
+
       if (results.length > 0) {
         return {
           message: `Successfully modified ${results.length} object(s)`,
           success: true,
-          commandData: commandData
-        }
+          commandData: commandData,
+        };
       } else {
         return {
-          message: 'No modifications were applied',
+          message: "No modifications were applied",
           success: true,
-          commandData: commandData
-        }
+          commandData: commandData,
+        };
       }
     } catch (error) {
-      console.error('❌ Modify command failed:', error)
+      console.error("❌ Modify command failed:", error);
       return {
-        message: 'Failed to modify objects',
+        message: "Failed to modify objects",
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 
@@ -622,28 +726,28 @@ export class CanvasAI {
    * Check if the AI service is properly initialized
    */
   isReady(): boolean {
-    return !!this.operations && !!this.canvasSize
+    return !!this.operations && !!this.canvasSize;
   }
 
   /**
    * Get the canvas size for context
    */
   getCanvasSize(): CanvasSize {
-    return this.canvasSize
+    return this.canvasSize;
   }
 
   /**
    * Update canvas size (called when canvas is resized)
    */
   updateCanvasSize(newSize: CanvasSize): void {
-    this.canvasSize = newSize
-    console.log('📐 CanvasAI updated canvas size:', newSize)
+    this.canvasSize = newSize;
+    console.log("📐 CanvasAI updated canvas size:", newSize);
   }
 }
 
 /**
  * Factory function to create CanvasAI instance
- * 
+ *
  * @param operations - CanvasOperations service instance
  * @param canvasSize - Current canvas dimensions
  * @param stateUpdater - Optional state updater for local state management
@@ -652,21 +756,27 @@ export class CanvasAI {
  * @returns CanvasAI instance
  */
 export function createCanvasAI(
-  operations: CanvasOperations, 
-  canvasSize: CanvasSize, 
+  operations: CanvasOperations,
+  canvasSize: CanvasSize,
   stateUpdater?: CanvasStateUpdater,
   currentColor?: string,
   viewportInfo?: { scale: number; position: { x: number; y: number } }
 ): CanvasAI {
-  return new CanvasAI(operations, canvasSize, stateUpdater, currentColor, viewportInfo)
+  return new CanvasAI(
+    operations,
+    canvasSize,
+    stateUpdater,
+    currentColor,
+    viewportInfo
+  );
 }
 
 /**
  * Example usage:
- * 
+ *
  * ```typescript
  * const ai = createCanvasAI(operations, { width: 800, height: 600 })
- * 
+ *
  * const response = await ai.processMessage("Create a rectangle")
  * if (response.success) {
  *   console.log('AI response:', response.message)
