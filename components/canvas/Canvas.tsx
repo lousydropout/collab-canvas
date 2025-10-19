@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { Rect } from 'react-konva'
 import CanvasStage from './CanvasStage'
 import Grid from './Grid'
 import Rectangle from './Rectangle'
@@ -365,11 +366,15 @@ export default function Canvas({
           y: (pointerPos.y - stage.y()) / stage.scaleY()
         }
         
-        setCreatingRect(prev => prev ? {
-          ...prev,
-          endX: stagePos.x,
-          endY: stagePos.y,
-        } : null)
+        setCreatingRect(prev => {
+          const newRect = prev ? {
+            ...prev,
+            endX: stagePos.x,
+            endY: stagePos.y,
+          } : null
+          console.log('🔍 Updating creatingRect:', { prev, newRect, stagePos })
+          return newRect
+        })
       }
     }
 
@@ -680,6 +685,16 @@ export default function Canvas({
     height: Math.abs(creatingRect.endY - creatingRect.startY),
   } : null
 
+  // Debug preview rectangle
+  if (isCreatingRect && creatingRect) {
+    console.log('🔍 Debug previewRect:', {
+      creatingRect,
+      previewRect,
+      isCreatingRect,
+      currentTool
+    })
+  }
+
   // Calculate ellipse dimensions for preview during creation
   const previewEllipse = creatingEllipse ? {
     x: Math.min(creatingEllipse.startX, creatingEllipse.endX),
@@ -825,25 +840,18 @@ export default function Canvas({
         ))}
         
         {/* Preview rectangle during creation */}
-        {previewRect && previewRect.width > 0 && previewRect.height > 0 && (
-          <Rectangle
-            object={{
-              id: 'preview',
-              canvas_id: 'default',
-              type: 'rectangle',
-              x: previewRect.x,
-              y: previewRect.y,
-              width: previewRect.width,
-              height: previewRect.height,
-              color: state.currentColor,
-              rotation: 0,
-              z_index: 999999, // High z-index for preview objects
-              owner: 'all',
-              created_by: null,
-              created_at: '',
-              updated_at: '',
-            }}
-            isSelected={false}
+        {isCreatingRect && creatingRect && (
+          <Rect
+            x={Math.min(creatingRect.startX, creatingRect.endX)}
+            y={Math.min(creatingRect.startY, creatingRect.endY)}
+            width={Math.abs(creatingRect.endX - creatingRect.startX)}
+            height={Math.abs(creatingRect.endY - creatingRect.startY)}
+            fill={state.currentColor}
+            opacity={0.5}
+            stroke={state.currentColor}
+            strokeWidth={2}
+            dash={[5, 5]}
+            listening={false}
           />
         )}
         
