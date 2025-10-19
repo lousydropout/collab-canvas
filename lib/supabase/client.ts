@@ -1,3 +1,17 @@
+/**
+ * Supabase Client Configuration
+ * 
+ * This module provides the configured Supabase client instance for the application.
+ * Handles environment variable validation and client setup with proper authentication.
+ * 
+ * Features:
+ * - Environment variable validation
+ * - Auto-refresh token configuration
+ * - Persistent session management
+ * - Type-safe database schema definitions
+ * - Debug logging for development
+ */
+
 import { createClient } from '@supabase/supabase-js'
 
 // Get environment variables

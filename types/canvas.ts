@@ -10,6 +10,7 @@
  * 
  * This interface represents the complete state of an object as stored in the database.
  * It includes all metadata fields (id, timestamps, ownership) plus the visual properties.
+ * Extended with physics properties for game mode integration.
  * 
  * @interface CanvasObject
  */
@@ -42,6 +43,16 @@ export interface CanvasObject {
   created_at: string
   /** ISO timestamp when object was last updated */
   updated_at: string
+  
+  // Physics properties for game mode integration
+  /** Physics body reference (Matter.js Body) */
+  physicsBody?: any
+  /** Whether physics is enabled for this object */
+  isPhysicsEnabled?: boolean
+  /** Type of physics body for game mechanics */
+  physicsType?: 'obstacle' | 'ball' | 'paddle'
+  /** Game properties stored as JSONB in database */
+  game_properties?: Record<string, any>
 }
 
 /**

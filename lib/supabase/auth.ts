@@ -1,3 +1,18 @@
+/**
+ * Authentication Service
+ * 
+ * This service provides a clean abstraction layer for all authentication operations.
+ * Handles user registration, login, logout, and profile management through Supabase Auth.
+ * 
+ * Features:
+ * - User registration with email/password
+ * - User login and session management
+ * - Profile creation and updates
+ * - Auth state change listeners
+ * - Error handling and type safety
+ * - Integration with Supabase profiles table
+ */
+
 import { supabase } from './client'
 import type { User, AuthError } from '@supabase/supabase-js'
 

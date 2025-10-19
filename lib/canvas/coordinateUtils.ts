@@ -1,3 +1,20 @@
+/**
+ * Coordinate and Value Parsing Utilities
+ * 
+ * This module provides comprehensive parsing utilities for coordinates, positions,
+ * sizes, colors, and directions. Supports natural language, percentages, and
+ * absolute values for flexible user input.
+ * 
+ * Features:
+ * - Coordinate parsing (absolute, percentage, natural language)
+ * - Position parsing with complex positioning (top-left, center, etc.)
+ * - Size parsing with natural language sizes (small, medium, large)
+ * - Color parsing (hex, named colors, RGB)
+ * - Direction parsing for movement operations
+ * - Bounds validation and constraint handling
+ * - Helper functions for available options
+ */
+
 export interface CanvasSize {
   width: number
   height: number

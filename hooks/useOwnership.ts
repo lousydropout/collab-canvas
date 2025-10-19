@@ -84,7 +84,7 @@ export function useOwnership({
       const initialState: OwnershipState = {}
       
       // Get all unique owner IDs that aren't 'all'
-      const ownerIds = [...new Set(objects?.map(obj => obj.owner).filter(owner => owner !== 'all'))]
+      const ownerIds = [...new Set(objects?.map((obj: any) => obj.owner).filter(owner => owner !== 'all'))]
       
       // Fetch owner names if there are any claims
       let ownerProfiles: Record<string, string> = {}
