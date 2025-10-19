@@ -462,7 +462,9 @@ export function useRealtime({
     // Add a maximum reconnection timeout to prevent getting stuck
     const maxReconnectTimeout = setTimeout(() => {
       if (isReconnectingRef.current) {
-        console.log("⚠️ Maximum reconnection timeout reached, forcing reset...");
+        console.log(
+          "⚠️ Maximum reconnection timeout reached, forcing reset..."
+        );
         isReconnectingRef.current = false;
         setState((prev) => ({
           ...prev,
@@ -474,7 +476,7 @@ export function useRealtime({
 
     // Store the max timeout ID for cleanup
     const maxTimeoutId = maxReconnectTimeout;
-    
+
     // Override the clear method to also clear the max timeout
     const originalClear = reconnectTimeoutRef.current;
     if (originalClear) {
@@ -623,7 +625,13 @@ export function useRealtime({
         if (newRecord && oldRecord && newRecord.owner !== oldRecord.owner) {
           // Skip processing if this is a rapid change from undefined to a user ID
           // This prevents infinite loops during object creation
-          if (oldRecord.owner === undefined && newRecord.owner && newRecord.owner !== "all") {
+          // Only skip if the object was just created (has created_by field)
+          if (
+            oldRecord.owner === undefined &&
+            newRecord.owner &&
+            newRecord.owner !== "all" &&
+            newRecord.created_by === newRecord.owner
+          ) {
             console.log(
               "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
               newRecord.id,

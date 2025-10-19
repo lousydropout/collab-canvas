@@ -1,47 +1,52 @@
-'use client'
+"use client";
 
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
-import { useAuth } from '@/hooks/useAuth'
-import Header from '@/components/layout/Header'
-import Toolbar from '@/components/layout/Toolbar'
-import { CanvasState } from '@/types/canvas'
-import { loadColorFromLocalStorage } from '@/lib/colorUtils'
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useAuth } from "@/hooks/useAuth";
+import Header from "@/components/layout/Header";
+import Toolbar from "@/components/layout/Toolbar";
+import { CanvasState } from "@/types/canvas";
+import { loadColorFromLocalStorage } from "@/lib/colorUtils";
 
 // Dynamically import Canvas with SSR disabled to prevent server-side rendering issues
-const Canvas = dynamic(() => import('@/components/canvas/Canvas'), {
+const Canvas = dynamic(() => import("@/components/canvas/Canvas"), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center h-full">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
   ),
-})
+});
 
 export default function CanvasPage() {
-  const { user, profile, loading, signOut } = useAuth()
-  const router = useRouter()
-  const [currentTool, setCurrentTool] = useState<CanvasState['tool']>('select')
-  const [currentColor, setCurrentColor] = useState(loadColorFromLocalStorage())
-  const [selectedObjects, setSelectedObjects] = useState<string[]>([])
-  const [operations, setOperations] = useState<any>(null) // Will be set by Canvas component
+  const { user, profile, loading, signOut } = useAuth();
+  const router = useRouter();
+  const [currentTool, setCurrentTool] = useState<CanvasState["tool"]>("select");
+  const [currentColor, setCurrentColor] = useState(loadColorFromLocalStorage());
+  const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
+  const [operations, setOperations] = useState<any>(null); // Will be set by Canvas component
+  const [stateUpdater, setStateUpdater] = useState<any>(null); // Will be set by Canvas component
 
   // Stable callbacks to prevent infinite re-renders
   const handleSelectedObjectsChange = useCallback((objects: string[]) => {
-    setSelectedObjects(objects)
-  }, [])
+    setSelectedObjects(objects);
+  }, []);
 
   const handleOperationsChange = useCallback((ops: any) => {
-    setOperations(ops)
-  }, [])
+    setOperations(ops);
+  }, []);
+
+  const handleStateUpdaterChange = useCallback((updater: any) => {
+    setStateUpdater(updater);
+  }, []);
 
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!loading && !user) {
-      router.push('/login')
+      router.push("/login");
     }
-  }, [user, loading, router])
+  }, [user, loading, router]);
 
   // Show loading state while checking authentication
   if (loading) {
@@ -52,54 +57,53 @@ export default function CanvasPage() {
           <p className="mt-2 text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
-    )
+    );
   }
 
   // Don't render if not authenticated (prevents flash)
   if (!user) {
-    return null
+    return null;
   }
 
   const handleSignOut = async () => {
-    console.log('Starting sign out process...')
-    await signOut()
-    console.log('Sign out completed, redirecting...')
+    console.log("Starting sign out process...");
+    await signOut();
+    console.log("Sign out completed, redirecting...");
     // Immediate redirect - let root page handle auth routing
-    router.push('/')
-  }
+    router.push("/");
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Header */}
-      <Header 
-        userName={profile?.display_name} 
-        onSignOut={handleSignOut} 
-      />
+      <Header userName={profile?.display_name} onSignOut={handleSignOut} />
 
       {/* Main Canvas Area */}
       <div className="flex flex-1">
         {/* Toolbar */}
-        <Toolbar 
+        <Toolbar
           currentTool={currentTool}
           currentColor={currentColor}
           selectedObjects={selectedObjects}
           operations={operations}
+          stateUpdater={stateUpdater}
           onToolChange={setCurrentTool}
           onColorChange={setCurrentColor}
         />
-        
+
         {/* Canvas */}
         <main className="flex-1 bg-gray-50 min-w-0">
-          <Canvas 
-            className="w-full h-full" 
+          <Canvas
+            className="w-full h-full"
             currentTool={currentTool}
             currentColor={currentColor}
             onToolChange={setCurrentTool}
             onSelectedObjectsChange={handleSelectedObjectsChange}
             onOperationsChange={handleOperationsChange}
+            onStateUpdaterChange={handleStateUpdaterChange}
           />
         </main>
       </div>
     </div>
-  )
+  );
 }

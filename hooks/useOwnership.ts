@@ -584,7 +584,13 @@ export function useOwnership({
       if (newOwner !== oldOwner) {
         // Skip processing if this is a rapid change from undefined to a user ID
         // This prevents infinite loops during object creation
-        if (oldOwner === undefined && newOwner && newOwner !== "all") {
+        // Only skip if the object was just created (has created_by field)
+        if (
+          oldOwner === undefined &&
+          newOwner &&
+          newOwner !== "all" &&
+          newRecord.created_by === newOwner
+        ) {
           console.log(
             "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
             objectId,

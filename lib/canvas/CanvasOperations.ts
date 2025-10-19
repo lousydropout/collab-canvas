@@ -679,9 +679,9 @@ export class CanvasOperations {
       // Determine axis if not provided
       if (!alignAxis) {
         if (["left", "right", "center"].includes(alignType)) {
-          alignAxis = "vertical";     // left/right/center = same X coordinate = vertical line
+          alignAxis = "vertical"; // left/right/center = same X coordinate = vertical line
         } else if (["top", "bottom", "middle"].includes(alignType)) {
-          alignAxis = "horizontal";   // top/bottom/middle = same Y coordinate = horizontal line
+          alignAxis = "horizontal"; // top/bottom/middle = same Y coordinate = horizontal line
         } else {
           alignAxis = "horizontal"; // default for distribute
         }

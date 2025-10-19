@@ -23,6 +23,7 @@ interface CanvasProps {
   onToolChange: (tool: CanvasState["tool"]) => void;
   onSelectedObjectsChange?: (objects: string[]) => void;
   onOperationsChange?: (operations: any) => void;
+  onStateUpdaterChange?: (stateUpdater: any) => void;
 }
 
 export default function Canvas({
@@ -32,6 +33,7 @@ export default function Canvas({
   onToolChange,
   onSelectedObjectsChange,
   onOperationsChange,
+  onStateUpdaterChange,
 }: CanvasProps) {
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -210,7 +212,7 @@ export default function Canvas({
     handleCursorUpdates
   );
 
-  // Create state updater for AI
+  // Create state updater for AI - include operations in dependencies
   const stateUpdater = useMemo(
     () => ({
       addObject: (object: any) => {
@@ -222,9 +224,13 @@ export default function Canvas({
       },
       updateObject: async (id: string, updates: any) => {
         console.log("🔧 State updater updating object:", id, updates);
+        if (!operations) {
+          console.error("❌ Operations not available in stateUpdater");
+          return null;
+        }
         await updateObject(id, updates);
         // Return the updated object from the operations service
-        return operations ? await operations.getObject(id) : null;
+        return await operations.getObject(id);
       },
       initializeOwnership: async (
         object: any,
@@ -241,7 +247,7 @@ export default function Canvas({
         return await ownership.claimObject(objectId);
       },
     }),
-    [ownership, addObjectToState, updateObject]
+    [operations, addObjectToState, updateObject, ownership]
   );
 
   // Memoize viewport info for AI
@@ -370,6 +376,13 @@ export default function Canvas({
       onOperationsChange(operations);
     }
   }, [operations, onOperationsChange]);
+
+  // Pass stateUpdater to parent component - only when operations is available
+  useEffect(() => {
+    if (operations && onStateUpdaterChange) {
+      onStateUpdaterChange(stateUpdater);
+    }
+  }, [operations, onStateUpdaterChange]);
 
   // Handle mouse down to start rectangle/ellipse creation
   const handleMouseDown = useCallback(
