@@ -26,6 +26,40 @@ export class CollisionDetectionService {
   private collisionCount = 0;
   private collisionHistory: CollisionEvent[] = [];
   private maxHistorySize = 100;
+  private eventListeners: Map<string, Function[]> = new Map();
+
+  /**
+   * Add event listener
+   */
+  on(eventType: string, callback: Function): void {
+    if (!this.eventListeners.has(eventType)) {
+      this.eventListeners.set(eventType, []);
+    }
+    this.eventListeners.get(eventType)!.push(callback);
+  }
+
+  /**
+   * Remove event listener
+   */
+  off(eventType: string, callback: Function): void {
+    const listeners = this.eventListeners.get(eventType);
+    if (listeners) {
+      const index = listeners.indexOf(callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+
+  /**
+   * Emit event to listeners
+   */
+  private emit(eventType: string, data: any): void {
+    const listeners = this.eventListeners.get(eventType);
+    if (listeners) {
+      listeners.forEach(callback => callback(data));
+    }
+  }
 
   /**
    * Set up collision event listeners on the physics engine
@@ -68,6 +102,9 @@ export class CollisionDetectionService {
       this.collisionCount++;
       this.addToHistory(collisionEvent);
 
+      // Emit collision event
+      this.emit('collisionStart', event);
+
       // Log collision details for debugging
       this.logCollisionDetails(collisionEvent, 'START');
     }
@@ -87,6 +124,9 @@ export class CollisionDetectionService {
         collision: pair.collision,
         timestamp: Date.now()
       };
+
+      // Emit collision event
+      this.emit('collisionEnd', event);
 
       this.logCollisionDetails(collisionEvent, 'END');
     }
@@ -109,7 +149,10 @@ export class CollisionDetectionService {
           timestamp: Date.now()
         };
 
-        this.logCollisionDetails(collisionEvent, 'ACTIVE');
+        // Emit collision event
+      this.emit('collisionActive', event);
+
+      this.logCollisionDetails(collisionEvent, 'ACTIVE');
       }
     }
   }

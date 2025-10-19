@@ -226,6 +226,41 @@ export class PhysicsEngine {
   }
 
   /**
+   * Set body position
+   */
+  setBodyPosition(body: Matter.Body, x: number, y: number): void {
+    if (!this.engine) {
+      console.warn('Physics engine not initialized');
+      return;
+    }
+
+    Matter.Body.setPosition(body, { x, y });
+  }
+
+  /**
+   * Set body velocity
+   */
+  setBodyVelocity(body: Matter.Body, x: number, y: number): void {
+    if (!this.engine) {
+      console.warn('Physics engine not initialized');
+      return;
+    }
+
+    Matter.Body.setVelocity(body, { x, y });
+  }
+
+  /**
+   * Set collision detection service
+   */
+  setCollisionService(collisionService: any): void {
+    if (!this.engine) {
+      throw new Error('Physics engine not initialized');
+    }
+
+    collisionService.setupCollisionListeners(this.engine);
+  }
+
+  /**
    * Set up collision event listeners
    */
   onCollision(callback: (pairs: Matter.Pair[]) => void): void {
