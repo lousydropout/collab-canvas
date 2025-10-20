@@ -16,6 +16,70 @@ CollabCanvas is a completed MVP for a collaborative design tool that enables mul
 
 The application uses a dual-channel real-time architecture with direct database operations for ownership management.
 
+### System Architecture
+
+CollabCanvas follows a real-time collaborative architecture with clear separation of concerns:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Client A      │    │   Client B      │    │   Client C      │
+│                 │    │                 │    │                 │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │   Konva     │ │    │ │   Konva     │ │    │ │   Konva     │ │
+│ │   Canvas    │ │    │ │   Canvas    │ │    │ │   Canvas    │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+│ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
+│ │   React     │ │    │ │   React     │ │    │ │   React     │ │
+│ │   State     │ │    │ │   State     │ │    │ │   State     │ │
+│ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │   Supabase      │
+                    │                 │
+                    │ ┌─────────────┐ │
+                    │ │  Realtime   │ │
+                    │ │  Channels   │ │
+                    │ └─────────────┘ │
+                    │ ┌─────────────┐ │
+                    │ │ PostgreSQL  │ │
+                    │ │  Database   │ │
+                    │ └─────────────┘ │
+                    └─────────────────┘
+```
+
+### Key Technical Decisions
+
+1. **Canvas Rendering: react-konva**
+
+   - React integration with Konva.js for component-based architecture
+   - React components wrapping Konva elements
+   - Canvas components use react-konva components
+
+2. **Real-time Sync: Dual Channel Architecture**
+
+   - **Broadcast Channel:** Object CRUD operations (create, update, delete, duplicate)
+   - **Database Channel:** Ownership changes only (prevents duplicate processing)
+   - **Pattern:** Optimistic UI with server validation
+
+3. **Ownership System: Claim-Confirm Pattern**
+
+   ```
+   1. User clicks object → Check owner === "all"
+   2. Show yellow border (pending state)
+   3. Send claim request to server
+   4. Server validates → Responds success/failure
+   5. Update UI: Yellow → User color (success) or Owner color (failure)
+   6. On release → Set owner: "all" and broadcast
+   ```
+
+4. **State Management: Local + Sync**
+   - **Local State:** Immediate UI updates for smooth interactions
+   - **Sync State:** Server state for conflict resolution
+   - **Pattern:** Optimistic updates with rollback capability
+
 ## ✨ Features
 
 - **Real-time Collaboration** - Multiple users editing simultaneously
@@ -41,6 +105,35 @@ The application uses a dual-channel real-time architecture with direct database 
 - **Runtime:** Bun
 - **Deployment:** Vercel
 
+## 📦 Dependencies
+
+### Core Dependencies
+
+- **next** - React framework with App Router
+- **react** - JavaScript library for building component-based applications
+- **react-konva** - React wrapper for Konva.js 2D canvas library
+- **konva** - 2D canvas library (dependency of react-konva)
+- **@supabase/supabase-js** - Supabase client for authentication, database, and real-time features
+- **tailwindcss** - CSS framework for styling
+- **@radix-ui/react-\*** - UI primitives (via shadcn/ui components)
+- **@ai-sdk/openai** - AI SDK for OpenAI integration
+- **ai** - Vercel AI SDK for text generation
+
+### Development Dependencies
+
+- **typescript** - Type checking and development
+- **@types/react** - React type definitions
+- **@types/konva** - Konva type definitions
+- **supabase** - CLI for database management (run via `bunx supabase`)
+
+### Key Features by Dependency
+
+- **react-konva + konva**: Canvas rendering, shape manipulation, real-time graphics
+- **@supabase/supabase-js**: User authentication, database persistence, real-time synchronization
+- **@ai-sdk/openai + ai**: Natural language processing for AI commands
+- **tailwindcss + @radix-ui**: Modern UI components and styling
+- **next**: Server-side rendering, API routes, deployment optimization
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -51,17 +144,20 @@ The application uses a dual-channel real-time architecture with direct database 
 ### Local Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/lousydropout/collab-canvas
    cd collab-canvas
    ```
 
 2. **Install dependencies**
+
    ```bash
    bun install
    ```
 
 3. **Set up Supabase**
+
    ```bash
    bunx supabase start
    bunx supabase migration up
@@ -69,14 +165,16 @@ The application uses a dual-channel real-time architecture with direct database 
 
 4. **Configure environment variables**
    Create `.env.local` with your Supabase credentials:
+
    ```bash
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
    ```
-   
+
    **Note:** Get these values from `bunx supabase status`
 
 5. **Start the development server**
+
    ```bash
    bun dev
    ```
@@ -109,6 +207,7 @@ The application uses a dual-channel real-time architecture with direct database 
 8. **Test batching performance** - monitor console for batched update messages
 
 For detailed testing instructions, see:
+
 - [REALTIME_TEST_GUIDE.md](./REALTIME_TEST_GUIDE.md) - Real-time collaboration testing
 - [BATCHING_TEST_GUIDE.md](./BATCHING_TEST_GUIDE.md) - Performance optimization testing
 - [PRESENCE_FIX_VERIFICATION.md](./PRESENCE_FIX_VERIFICATION.md) - Presence system testing
@@ -185,6 +284,7 @@ The application is deployed on Vercel and publicly accessible at [https://collab
 ## 🎯 Success Criteria ✅
 
 ### MVP Requirements - ALL COMPLETE
+
 - ✅ Canvas with pan/zoom
 - ✅ Rectangle creation & movement
 - ✅ Real-time 2+ user sync
@@ -196,6 +296,7 @@ The application is deployed on Vercel and publicly accessible at [https://collab
 - ✅ State persists
 
 ### Performance Goals - ALL ACHIEVED
+
 - ✅ 60 FPS under load
 - ✅ <100ms object sync
 - ✅ <50ms cursor sync
@@ -213,30 +314,164 @@ The application is deployed on Vercel and publicly accessible at [https://collab
 - **Presence Deduplication** - Prevents duplicate user counting across reconnections
 - **Shape Support** - Both rectangles and ellipses with unified transformation system
 
-### Ownership Conflict Management
+## 🔒 Conflict Resolution
 
-The ownership system prevents editing conflicts through an atomic claim/release mechanism:
+### Ownership-Based Conflict Prevention
 
-1. **Pending Claim** - When a user clicks an object, they make a pending claim (yellow border)
-2. **Server Validation** - Database validates the claim atomically (only if `owner === "all"`)
-3. **Success** - User can move the object, which shows their color border
-4. **Rejection** - If another user claimed it first, shows red border with owner's name
-5. **Locked State** - Other users cannot select the object until the owner releases it
-6. **Release** - Owner releases by clicking empty space or finishing their edit
+CollabCanvas implements a **claim-based ownership system** to prevent editing conflicts in real-time collaboration. Users must claim ownership of objects before they can modify them.
 
-This ensures only one user can edit an object at a time while providing clear visual feedback about ownership status.
+### How It Works
 
-**Note:** To prevent race conditions when users modify objects, objects have to be selected and claimed before they can be modified. This prevents conflicts when multiple users try to edit the same object simultaneously.
+1. **Object States:**
+
+   - **Available (`owner: "all"`)**: Any user can claim and edit
+   - **Claimed (`owner: userId`)**: Only the claiming user can edit
+   - **Pending**: User clicked object, awaiting server validation
+
+2. **Claim Process:**
+
+   ```
+   User clicks object → Check if owner === "all"
+   ↓
+   Show yellow border (pending state)
+   ↓
+   Send claim request to server
+   ↓
+   Server validates atomically → Success/Failure
+   ↓
+   Update UI: Yellow → User color (success) or Owner color (failure)
+   ```
+
+3. **Visual Feedback:**
+
+   - **Yellow Border**: Pending claim (waiting for server)
+   - **User Color Border**: Successfully claimed (can edit)
+   - **Red Border**: Claimed by another user (cannot edit)
+   - **No Border**: Available for claiming
+
+4. **Release Process:**
+   - Owner releases by clicking empty space
+   - Owner releases by finishing their edit operation
+   - Object returns to `owner: "all"` state
+
+### Why This Approach?
+
+**Prevents Race Conditions:** Without ownership, multiple users could simultaneously modify the same object, leading to:
+
+- Lost changes
+- Inconsistent state
+- Poor user experience
+
+**Clear User Feedback:** Users always know:
+
+- Which objects they can edit
+- Which objects are being edited by others
+- When their claim is pending
+
+**Server-Side Validation:** Database-level atomic operations ensure only one user can claim an object at a time.
+
+### Network Resilience Implications
+
+**Online-Only Requirement:** The conflict resolution strategy requires network connectivity because:
+
+- Ownership claims must be validated server-side
+- Users cannot claim objects when offline
+- This prevents offline users from creating conflicting changes
+
+**Trade-off Decision:** While this limits offline functionality, it ensures data consistency and prevents the complex merge conflicts that would arise from offline editing.
+
+## 🤖 AI Approach
+
+### Single-Prompt Architecture
+
+CollabCanvas uses a **single-prompt approach** for AI command processing, designed to avoid API key exposure while maintaining client-side canvas control.
+
+### Architecture Overview
+
+```
+User Input → Server Action → LLM Processing → JSON Response → Client Parsing → Canvas Operations
+```
+
+### Why This Design?
+
+**Security First:** API keys must remain server-side to prevent exposure:
+
+- OpenAI API keys are never sent to the client
+- All LLM calls happen in Next.js server actions
+- Client receives only structured JSON responses
+
+**Client-Side Canvas Control:** Canvas objects must be manipulated client-side because:
+
+- react-konva requires direct DOM manipulation
+- Real-time synchronization happens client-side
+- Canvas state management is local to each client
+
+**No Tool Calling:** Traditional AI tool calling wasn't feasible because:
+
+- Tools would need to run client-side (security risk)
+- Canvas operations require immediate UI updates
+- Real-time collaboration needs local state management
+
+### Implementation Details
+
+1. **Server Action (`detectObjectIntent`)**:
+
+   - Receives natural language command
+   - Sends structured prompt to OpenAI GPT-4o-mini
+   - Returns JSON command object
+
+2. **Prompt Engineering**:
+
+   - Detailed instructions for JSON response format
+   - Context about viewport, selection, and canvas state
+   - Examples for different command types
+   - Validation rules for coordinate systems
+
+3. **Command Types**:
+
+   - **Create**: Single objects, batches, or patterns
+   - **Modify**: Position, size, color, or text changes
+   - **Layout**: Alignment and distribution operations
+
+4. **Client Processing**:
+   - Parses JSON command
+   - Maps to appropriate canvas operations
+   - Handles ownership claims
+   - Executes with optimistic UI updates
+
+### Example Flow
+
+```
+User: "Create a blue rectangle"
+↓
+Server Action: Sends prompt to OpenAI
+↓
+OpenAI Response: {"command": "create", "objectType": "rectangle", "color": "#0000ff", ...}
+↓
+Client: Parses JSON, calls createRectangle(), claims ownership
+↓
+Canvas: Rectangle appears with blue color
+```
+
+### Benefits
+
+- **Secure**: API keys never exposed to client
+- **Flexible**: Single prompt handles all command types
+- **Efficient**: No complex tool calling infrastructure
+- **Maintainable**: Clear separation between AI processing and canvas operations
+- **Extensible**: Easy to add new command types via prompt engineering
 
 ## 🤝 Contributing
 
 This MVP is complete and successful. Recent improvements include:
+
 - **Ellipse Support** - Added ellipse creation and manipulation
 - **Batching System** - Optimized updates for smoother multi-user collaboration
 - **Presence Fix** - Resolved duplicate user counting issues
 - **Performance Optimization** - Enhanced real-time synchronization
 
 Future enhancements could include:
+
 - Additional shape tools (text, polygons)
 - Advanced transformations (rotation handles)
 - Undo/redo functionality
