@@ -270,8 +270,12 @@ export default function Canvas({
         console.log("🏷️ State updater claiming object:", objectId);
         return await ownership.claimObject(objectId);
       },
+      selectObjects: (objectIds: string[]) => {
+        console.log("🎯 State updater selecting objects:", objectIds);
+        selectObjects(objectIds);
+      },
     }),
-    [operations, addObjectToState, updateObject, ownership]
+    [operations, addObjectToState, updateObject, ownership, selectObjects]
   );
 
   // Memoize viewport info for AI

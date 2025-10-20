@@ -29,12 +29,19 @@ export interface AICommand {
     | "triangle"
     | "square"
     | "circle"
+    | "textbox"
     | null;
   x?: number | null;
   y?: number | null;
   width?: number | null;
   height?: number | null;
   color?: string | null;
+  // Textbox-specific fields
+  text_content?: string | null;
+  font_size?: number | null;
+  font_family?: string | null;
+  font_weight?: string | null;
+  text_align?: string | null;
   // Modify command attributes
   deltaX?: number | null;
   deltaY?: number | null;
@@ -52,12 +59,23 @@ export interface AICommand {
   alignType?: "left" | "right" | "center" | "top" | "bottom" | "middle" | null;
   // Batch support
   args?: Array<{
-    objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
+    objectType:
+      | "rectangle"
+      | "ellipse"
+      | "triangle"
+      | "square"
+      | "circle"
+      | "textbox";
     x?: number;
     y?: number;
     width?: number;
     height?: number;
     color?: string;
+    text_content?: string;
+    font_size?: number;
+    font_family?: string;
+    font_weight?: string;
+    text_align?: string;
   }>;
   // Pattern support
   pattern?: {
@@ -70,6 +88,11 @@ export interface AICommand {
     width?: number;
     height?: number;
     color?: string;
+    text_content?: string;
+    font_size?: number;
+    font_family?: string;
+    font_weight?: string;
+    text_align?: string;
   };
 }
 
@@ -107,7 +130,7 @@ export async function detectObjectIntent(
 **Instructions:**
 - Respond with ONLY valid JSON; no markdown, commentary, or code blocks.
 - Always return JSON matching the AICommand interface.
-- Infer reasonable defaults if fields are missing: center objects, default sizes, random colors.
+- Infer reasonable defaults if fields are missing: center objects, default sizes, omit color field for random colors.
 - Do not mix conflicting fields: deltaX with newX, deltaY with newY, scaleBy with newWidth/newHeight.
 
 **Selection Rules:**
@@ -164,6 +187,8 @@ export async function detectObjectIntent(
 - "circle" = ellipse with equal width and height  
 - "rectangle" = rectangle (any aspect ratio)
 - "ellipse" = ellipse (any aspect ratio)
+- "triangle" = triangle shape
+- "textbox" = text container with content, font size, font family, font weight, and text alignment
 
 **COORDINATE SYSTEM:**
 - Y-axis increases downward
@@ -173,7 +198,7 @@ export async function detectObjectIntent(
 **FIELD USAGE:**
 - deltaX/deltaY: relative movement
 - newX/newY: absolute positioning
-- scaleBy: proportional size change
+- scaleBy: proportional size change (font size for textboxes, width/height for other objects)
 - newWidth/newHeight: absolute size
 - Do not mix deltaX with newX, deltaY with newY, scaleBy with newWidth/newHeight
 
@@ -182,12 +207,17 @@ export async function detectObjectIntent(
 CREATE SINGLE OBJECT:
 {
   "command": "create",
-  "objectType": "rectangle" | "ellipse",
+  "objectType": "rectangle" | "ellipse" | "triangle" | "square" | "circle" | "textbox",
   "x": number,
   "y": number,
   "width": number,
   "height": number,
-  "color": "#hexcolor"
+  "color": "#hexcolor",
+  "text_content": "string",     // required for textbox
+  "font_size": number,          // optional for textbox (default: 16)
+  "font_family": "string",      // optional for textbox (default: "Arial")
+  "font_weight": "string",      // optional for textbox (default: "normal")
+  "text_align": "string"        // optional for textbox (default: "left")
 }
 
 CREATE SMALL REPEATED OBJECTS (2–10) OR LARGE WITH USER-POSITIONS:
@@ -195,12 +225,17 @@ CREATE SMALL REPEATED OBJECTS (2–10) OR LARGE WITH USER-POSITIONS:
   "command": "create",
   "args": [
     {
-      "objectType": "rectangle" | "ellipse",
+      "objectType": "rectangle" | "ellipse" | "triangle" | "square" | "circle" | "textbox",
       "x": number,
       "y": number,
       "width": number,
       "height": number,
-      "color": "#hexcolor"
+      "color": "#hexcolor",
+      "text_content": "string",     // required for textbox
+      "font_size": number,          // optional for textbox
+      "font_family": "string",      // optional for textbox
+      "font_weight": "string",       // optional for textbox
+      "text_align": "string"        // optional for textbox
     }
   ]
 }
@@ -208,17 +243,22 @@ CREATE SMALL REPEATED OBJECTS (2–10) OR LARGE WITH USER-POSITIONS:
 CREATE PATTERN (>10 OR GRID/LINE/CIRCLE/RANDOM):
 {
   "command": "create",
-  "objectType": "rectangle" | "ellipse",
+  "objectType": "rectangle" | "ellipse" | "triangle" | "square" | "circle" | "textbox",
   "pattern": {
     "type": "grid" | "line" | "circle" | "random",
     "count": number,             // required for line/circle/random
     "rows": number,              // required for grid
-    "columns": number,           // required for grid
+    "columns": number,            // required for grid
     "spacing": { "x": number, "y": number },  // optional
     "startPosition": { "x": number, "y": number }, // optional
     "width": number,             // optional, default if missing
     "height": number,            // optional, default if missing
-    "color": "#hexcolor"         // optional, random if missing
+    "color": "#hexcolor",        // optional, omit this field for random colors
+    "text_content": "string",    // required for textbox patterns
+    "font_size": number,         // optional for textbox patterns
+    "font_family": "string",     // optional for textbox patterns
+    "font_weight": "string",     // optional for textbox patterns
+    "text_align": "string"       // optional for textbox patterns
   }
 }
 
@@ -251,17 +291,23 @@ LAYOUT OBJECTS:
 - "top", "bottom", "middle" -> horizontal alignment (same Y coordinate, horizontal line)
 
 **Examples:**
-- "create a rectangle" -> single object template
-- "create a blue square" -> single object template (square = rectangle)
-- "add 3 blue circles" -> args template (circle = ellipse)
-- "create a red triangle" -> single object template
-- "make 5 triangles in a line" -> args template
-- "create a 10x10 grid of rectangles" -> pattern template (grid)
-- "create a line of 5 circles" -> pattern template (line)
-- "create random dots" -> pattern template (random)
+- "create a rectangle" -> single object template (no color field = random color)
+- "create a blue square" -> single object template with color: "#0000ff"
+- "add 3 blue circles" -> args template with color: "#0000ff"
+- "create a red triangle" -> single object template with color: "#ff0000"
+- "create a textbox with 'Hello World'" -> single object template with text_content: "Hello World"
+- "create a large textbox with 'Title'" -> single object template with text_content: "Title", font_size: 24
+- "make 5 triangles in a line" -> args template (no color field = random colors)
+- "create a 10x10 grid of rectangles" -> pattern template (no color field = random colors)
+- "create a line of 5 circles" -> pattern template (no color field = random colors)
+- "create random dots" -> pattern template (no color field = random colors)
+- "create a 3x3 grid of textboxes with 'Label'" -> pattern template with text_content: "Label"
 - "move right" -> modify template
 - "make bigger" -> modify template
+- "make fontsize 2x as large" -> modify template with scaleBy: 2 (for textboxes)
 - "change to red" -> modify template
+- "change text to 'Hello'" -> modify template with text_content: "Hello" (for textboxes)
+- "make text bold" -> modify template with font_weight: "bold" (for textboxes)
 - "arrange selected in a row" -> layout template (row)
 - "arrange selected in a column" -> layout template (column)
 - "create a 2x3 grid with selected" -> layout template (grid)
@@ -276,7 +322,7 @@ LAYOUT OBJECTS:
 **IMPORTANT:**
 - Use "args" for 2–10 repeated objects with automatic spreading.
 - Use "pattern" for >10 objects or pattern layouts.
-- Defaults: center, default sizes, random colors.
+- Defaults: center, default sizes, omit color field for random colors.
 - Respond ONLY with JSON, no markdown or commentary.
 
 **User command:** "${message}"`;

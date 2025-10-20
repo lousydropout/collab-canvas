@@ -22,6 +22,44 @@ import {
 // Default values for object creation
 const DEFAULT_SIZE = { width: 200, height: 150 };
 
+// Array of vibrant colors for random selection
+const RANDOM_COLORS = [
+  "#FF6B6B", // Red
+  "#4ECDC4", // Teal
+  "#45B7D1", // Blue
+  "#96CEB4", // Green
+  "#FFEAA7", // Yellow
+  "#DDA0DD", // Plum
+  "#98D8C8", // Mint
+  "#F7DC6F", // Gold
+  "#BB8FCE", // Lavender
+  "#85C1E9", // Sky Blue
+  "#F8C471", // Orange
+  "#82E0AA", // Light Green
+  "#F1948A", // Pink
+  "#85C1E9", // Light Blue
+  "#D7BDE2", // Light Purple
+  "#F9E79F", // Light Yellow
+  "#A9DFBF", // Light Mint
+  "#FADBD8", // Light Pink
+  "#D5DBDB", // Light Gray
+  "#FCF3CF", // Cream
+];
+
+/**
+ * Generate a random color from the predefined color palette
+ */
+function getRandomColor(): string {
+  return RANDOM_COLORS[Math.floor(Math.random() * RANDOM_COLORS.length)];
+}
+
+/**
+ * Check if a color string is a valid hex color
+ */
+function isValidHexColor(color: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(color);
+}
+
 export interface AIResponse {
   message: string;
   success: boolean;
@@ -41,6 +79,7 @@ export interface CanvasStateUpdater {
     displayName?: string
   ) => Promise<void>;
   claimObject: (objectId: string) => Promise<boolean>;
+  selectObjects: (objectIds: string[]) => void;
 }
 
 /**
@@ -199,7 +238,13 @@ export class CanvasAI {
    */
   private applyDefaults(commandData: AICommand): {
     command: "create" | "modify" | "layout";
-    objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
+    objectType:
+      | "rectangle"
+      | "ellipse"
+      | "triangle"
+      | "square"
+      | "circle"
+      | "textbox";
     x: number;
     y: number;
     width: number;
@@ -212,6 +257,12 @@ export class CanvasAI {
     scaleBy: null;
     newWidth: null;
     newHeight: null;
+    // Textbox-specific fields
+    text_content: string;
+    font_size: number;
+    font_family: string;
+    font_weight: string;
+    text_align: string;
   } {
     const center = this.getViewportCenter();
 
@@ -229,6 +280,10 @@ export class CanvasAI {
       } else if (commandData.objectType === "triangle") {
         // Default triangle, 10% of viewport dimensions
         width = Math.round(this.canvasSize.width * 0.1);
+        height = Math.round(this.canvasSize.height * 0.1);
+      } else if (commandData.objectType === "textbox") {
+        // Default textbox, larger for text content
+        width = Math.round(this.canvasSize.width * 0.2);
         height = Math.round(this.canvasSize.height * 0.1);
       } else {
         // Default rectangle, 10% of viewport dimensions
@@ -254,7 +309,10 @@ export class CanvasAI {
       y,
       width,
       height,
-      color: commandData.color ?? this.currentColor,
+      color:
+        commandData.color && isValidHexColor(commandData.color)
+          ? commandData.color
+          : getRandomColor(),
       deltaX: null,
       deltaY: null,
       newX: null,
@@ -262,6 +320,12 @@ export class CanvasAI {
       scaleBy: null,
       newWidth: null,
       newHeight: null,
+      // Textbox-specific fields
+      text_content: commandData.text_content || "Text",
+      font_size: commandData.font_size || 16,
+      font_family: commandData.font_family || "Arial",
+      font_weight: commandData.font_weight || "normal",
+      text_align: commandData.text_align || "left",
     };
   }
 
@@ -390,6 +454,39 @@ export class CanvasAI {
         success: true,
         commandData: params,
       };
+    } else if (normalizedObjectType === "textbox") {
+      const result = await this.operations.createTextbox({
+        x: params.x,
+        y: params.y,
+        width: params.width,
+        height: params.height,
+        color: params.color,
+        rotation: 0,
+        text_content: params.text_content,
+        font_size: params.font_size,
+        font_family: params.font_family,
+        font_weight: params.font_weight,
+        text_align: params.text_align,
+      });
+
+      // Initialize ownership and add to local state if state updater is available
+      if (result && this.stateUpdater) {
+        await this.stateUpdater.initializeOwnership(
+          result,
+          this.operations["user"].id,
+          this.operations["user"].email
+        );
+        // Add to local state immediately (CanvasOperations.createTextbox already broadcasts)
+        this.stateUpdater.addObject(result);
+      }
+
+      return {
+        message: `Successfully created a textbox at (${Math.round(
+          params.x
+        )}, ${Math.round(params.y)}) with text "${params.text_content}"`,
+        success: true,
+        commandData: params,
+      };
     } else {
       return {
         message: "Unknown object type",
@@ -404,18 +501,30 @@ export class CanvasAI {
    */
   private async handleBatchCreation(
     args: Array<{
-      objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
+      objectType:
+        | "rectangle"
+        | "ellipse"
+        | "triangle"
+        | "square"
+        | "circle"
+        | "textbox";
       x?: number;
       y?: number;
       width?: number;
       height?: number;
       color?: string;
+      text_content?: string;
+      font_size?: number;
+      font_family?: string;
+      font_weight?: string;
+      text_align?: string;
     }>
   ): Promise<AIResponse> {
     console.log("🎨 Creating batch of objects:", args.length);
 
     const results = [];
     const errors = [];
+    const createdObjectIds: string[] = []; // Collect all created IDs
 
     for (const arg of args) {
       try {
@@ -426,7 +535,10 @@ export class CanvasAI {
           y: arg.y ?? null,
           width: arg.width ?? null,
           height: arg.height ?? null,
-          color: arg.color ?? null,
+          color:
+            arg.color && isValidHexColor(arg.color)
+              ? arg.color
+              : getRandomColor(), // Use random color if no valid color provided
         });
 
         // Map common object type aliases to supported types
@@ -466,6 +578,20 @@ export class CanvasAI {
             color: params.color,
             rotation: 0,
           });
+        } else if (normalizedObjectType === "textbox") {
+          result = await this.operations.createTextbox({
+            x: params.x,
+            y: params.y,
+            width: params.width,
+            height: params.height,
+            color: params.color,
+            rotation: 0,
+            text_content: params.text_content,
+            font_size: params.font_size,
+            font_family: params.font_family,
+            font_weight: params.font_weight,
+            text_align: params.text_align,
+          });
         }
 
         if (result && this.stateUpdater) {
@@ -475,6 +601,7 @@ export class CanvasAI {
             this.operations["user"].email
           );
           this.stateUpdater.addObject(result);
+          createdObjectIds.push(result.id); // Collect ID
         }
 
         results.push(result);
@@ -482,6 +609,11 @@ export class CanvasAI {
         console.error("❌ Error creating object in batch:", error);
         errors.push(error);
       }
+    }
+
+    // Select all created objects at once
+    if (createdObjectIds.length > 0 && this.stateUpdater) {
+      this.stateUpdater.selectObjects(createdObjectIds);
     }
 
     const successCount = results.filter((r) => r !== null).length;
@@ -529,17 +661,41 @@ export class CanvasAI {
     try {
       // Simple grid pattern implementation
       if (pattern.type === "grid" && pattern.rows && pattern.columns) {
-        const spacing = pattern.spacing || { x: 50, y: 50 };
         const startPos = pattern.startPosition || { x: 100, y: 100 };
+
+        // Calculate object dimensions first
         const width = pattern.width || Math.round(this.canvasSize.width * 0.05);
         const height =
           pattern.height || Math.round(this.canvasSize.height * 0.05);
-        const color = pattern.color || "#ff0000";
+        // Use pattern color if provided, otherwise each object will get a random color
+
+        // Calculate spacing based on object size to prevent overlaps
+        const padding = 10; // 10px padding between objects
+        const minSpacingX = width + padding;
+        const minSpacingY = height + padding;
+
+        // Use AI-provided spacing if it's large enough, otherwise use minimum safe spacing
+        const spacing = {
+          x: pattern.spacing
+            ? Math.max(pattern.spacing.x, minSpacingX)
+            : minSpacingX,
+          y: pattern.spacing
+            ? Math.max(pattern.spacing.y, minSpacingY)
+            : minSpacingY,
+        };
+
+        const createdObjectIds: string[] = []; // Collect all created IDs
 
         for (let row = 0; row < pattern.rows; row++) {
           for (let col = 0; col < pattern.columns; col++) {
             const x = startPos.x + col * spacing.x;
             const y = startPos.y + row * spacing.y;
+
+            // Generate a new random color for each object when pattern color is invalid
+            const objectColor =
+              pattern.color && isValidHexColor(pattern.color)
+                ? pattern.color
+                : getRandomColor();
 
             let result;
             if (normalizedObjectType === "rectangle") {
@@ -549,7 +705,7 @@ export class CanvasAI {
                 y,
                 width,
                 height,
-                color,
+                color: objectColor,
                 rotation: 0,
               });
             } else if (normalizedObjectType === "ellipse") {
@@ -558,7 +714,7 @@ export class CanvasAI {
                 y,
                 width,
                 height,
-                color,
+                color: objectColor,
                 rotation: 0,
               });
             } else if (normalizedObjectType === "triangle") {
@@ -567,8 +723,22 @@ export class CanvasAI {
                 y,
                 width,
                 height,
-                color,
+                color: objectColor,
                 rotation: 0,
+              });
+            } else if (normalizedObjectType === "textbox") {
+              result = await this.operations.createTextbox({
+                x,
+                y,
+                width,
+                height,
+                color: objectColor,
+                rotation: 0,
+                text_content: pattern.text_content || "Text",
+                font_size: pattern.font_size || 16,
+                font_family: pattern.font_family || "Arial",
+                font_weight: pattern.font_weight || "normal",
+                text_align: pattern.text_align || "left",
               });
             }
 
@@ -579,10 +749,16 @@ export class CanvasAI {
                 this.operations["user"].email
               );
               this.stateUpdater.addObject(result);
+              createdObjectIds.push(result.id); // Collect ID
             }
 
             results.push(result);
           }
+        }
+
+        // Select all created objects at once
+        if (createdObjectIds.length > 0 && this.stateUpdater) {
+          this.stateUpdater.selectObjects(createdObjectIds);
         }
       } else {
         // For other pattern types, create a simple implementation
@@ -590,11 +766,17 @@ export class CanvasAI {
         const width = pattern.width || Math.round(this.canvasSize.width * 0.05);
         const height =
           pattern.height || Math.round(this.canvasSize.height * 0.05);
-        const color = pattern.color || "#ff0000";
+        // Use pattern color if provided, otherwise each object will get a random color
 
         for (let i = 0; i < count; i++) {
           const x = Math.random() * (this.canvasSize.width - width);
           const y = Math.random() * (this.canvasSize.height - height);
+
+          // Generate a new random color for each object when pattern color is invalid
+          const objectColor =
+            pattern.color && isValidHexColor(pattern.color)
+              ? pattern.color
+              : getRandomColor();
 
           let result;
           if (objectType === "rectangle") {
@@ -604,7 +786,7 @@ export class CanvasAI {
               y,
               width,
               height,
-              color,
+              color: objectColor,
               rotation: 0,
             });
           } else if (objectType === "ellipse") {
@@ -613,7 +795,7 @@ export class CanvasAI {
               y,
               width,
               height,
-              color,
+              color: objectColor,
               rotation: 0,
             });
           } else if (objectType === "triangle") {
@@ -622,8 +804,22 @@ export class CanvasAI {
               y,
               width,
               height,
-              color,
+              color: objectColor,
               rotation: 0,
+            });
+          } else if (objectType === "textbox") {
+            result = await this.operations.createTextbox({
+              x,
+              y,
+              width,
+              height,
+              color: objectColor,
+              rotation: 0,
+              text_content: pattern.text_content || "Text",
+              font_size: pattern.font_size || 16,
+              font_family: pattern.font_family || "Arial",
+              font_weight: pattern.font_weight || "normal",
+              text_align: pattern.text_align || "left",
             });
           }
 
@@ -747,17 +943,62 @@ export class CanvasAI {
           commandData.scaleBy !== undefined &&
           commandData.scaleBy !== 0
         ) {
-          // scaleBy is a multiplier: 2 = 2x larger, 0.5 = half the size, etc.
-          modifications.width = currentObject.width * commandData.scaleBy;
-          modifications.height = currentObject.height * commandData.scaleBy;
-          console.log(
-            `🔧 Scaling object ${objectId}: ${currentObject.width}x${currentObject.height} * ${commandData.scaleBy} = ${modifications.width}x${modifications.height}`
-          );
+          if (currentObject.type === "textbox") {
+            // For textboxes, scaleBy applies to font size, not object dimensions
+            const currentFontSize = currentObject.font_size || 16;
+            modifications.font_size = Math.round(
+              currentFontSize * commandData.scaleBy
+            );
+            console.log(
+              `🔧 Scaling textbox font size ${objectId}: ${currentFontSize} * ${commandData.scaleBy} = ${modifications.font_size}`
+            );
+          } else {
+            // For other objects, scaleBy applies to width and height
+            modifications.width = currentObject.width * commandData.scaleBy;
+            modifications.height = currentObject.height * commandData.scaleBy;
+            console.log(
+              `🔧 Scaling object ${objectId}: ${currentObject.width}x${currentObject.height} * ${commandData.scaleBy} = ${modifications.width}x${modifications.height}`
+            );
+          }
         }
 
         // Apply color change
         if (commandData.color !== null && commandData.color !== undefined) {
           modifications.color = commandData.color;
+        }
+
+        // Apply textbox-specific modifications
+        if (currentObject.type === "textbox") {
+          if (
+            commandData.text_content !== null &&
+            commandData.text_content !== undefined
+          ) {
+            modifications.text_content = commandData.text_content;
+          }
+          if (
+            commandData.font_size !== null &&
+            commandData.font_size !== undefined
+          ) {
+            modifications.font_size = commandData.font_size;
+          }
+          if (
+            commandData.font_family !== null &&
+            commandData.font_family !== undefined
+          ) {
+            modifications.font_family = commandData.font_family;
+          }
+          if (
+            commandData.font_weight !== null &&
+            commandData.font_weight !== undefined
+          ) {
+            modifications.font_weight = commandData.font_weight;
+          }
+          if (
+            commandData.text_align !== null &&
+            commandData.text_align !== undefined
+          ) {
+            modifications.text_align = commandData.text_align;
+          }
         }
 
         // Apply specific size changes (override scaling if both present)
