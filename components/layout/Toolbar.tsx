@@ -360,11 +360,15 @@ export default function Toolbar({
         </Button>
 
         <Button
-          variant="ghost"
+          variant={currentTool === "text" ? "default" : "ghost"}
           size="sm"
-          className="w-10 h-10 p-0 text-gray-400 cursor-not-allowed flex items-center justify-center"
-          title="Text Tool (Coming Soon)"
-          disabled
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
+            currentTool === "text"
+              ? "!bg-blue-600 !text-white hover:!bg-blue-700"
+              : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
+          }`}
+          title="Text Tool"
+          onClick={() => onToolChange("text")}
         >
           <Type className="h-4 w-4" />
         </Button>

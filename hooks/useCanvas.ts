@@ -7,6 +7,7 @@ import {
   CreateObjectPayload,
   EllipseData,
   TriangleData,
+  TextboxData,
 } from "@/types/canvas";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -516,8 +517,6 @@ export function useCanvas(
       }
 
       try {
-        console.log("🔺 Creating triangle:", data);
-
         // Use CanvasOperations service
         const newObject = await operations.createTriangle({
           ...data,
@@ -528,8 +527,6 @@ export function useCanvas(
           console.error("❌ Failed to create triangle");
           return null;
         }
-
-        console.log("✅ Triangle created:", newObject);
 
         // Track this as a local operation to prevent loop when we receive our own DB change
         localOperationsRef.current.add(newObject.id);
@@ -553,6 +550,57 @@ export function useCanvas(
         return newObject;
       } catch (error) {
         console.error("❌ Failed to create triangle:", error);
+        return null;
+      }
+    },
+    [operations, state.currentColor, onNewObjectCreated, user, profile]
+  );
+
+  const createTextbox = useCallback(
+    async (data: TextboxData) => {
+      if (!operations) {
+        console.error("❌ CanvasOperations not available");
+        return null;
+      }
+
+      try {
+        console.log("📝 Creating textbox:", data);
+
+        // Use CanvasOperations service
+        const newObject = await operations.createTextbox({
+          ...data,
+          color: data.color || state.currentColor,
+        });
+
+        if (!newObject) {
+          console.error("❌ Failed to create textbox");
+          return null;
+        }
+
+        console.log("✅ Textbox created:", newObject);
+
+        // Track this as a local operation to prevent loop when we receive our own DB change
+        localOperationsRef.current.add(newObject.id);
+
+        // Initialize ownership state FIRST (before adding to canvas state)
+        if (onNewObjectCreated) {
+          console.log(
+            "🏷️ Initializing ownership state for creator:",
+            newObject.id
+          );
+          await onNewObjectCreated(newObject, user!.id, profile?.display_name);
+        }
+
+        // Add to local state AFTER ownership is initialized (prevents race condition)
+        setState((prev) => ({
+          ...prev,
+          objects: [...prev.objects, newObject],
+          selectedObjects: [newObject.id],
+        }));
+
+        return newObject;
+      } catch (error) {
+        console.error("❌ Error creating textbox:", error);
         return null;
       }
     },
@@ -766,6 +814,7 @@ export function useCanvas(
     createRectangle,
     createEllipse,
     createTriangle,
+    createTextbox,
     updateObject,
     deleteObjects,
     duplicateObjects,

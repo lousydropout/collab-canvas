@@ -32,7 +32,7 @@ All core requirements have been implemented and are working:
 ### Canvas Functionality
 
 - **Pan & Zoom** - Smooth canvas navigation (10%-500% zoom range)
-- **Shape Creation** - Click and drag to create rectangles and ellipses with color picker
+- **Shape Creation** - Click and drag to create rectangles, ellipses, and triangles with color picker
 - **Object Selection** - Click to select, shift+click for multi-select
 - **Object Transformation** - Drag to move, resize handles via Konva Transformer
 - **Object Deletion** - Delete key or button to remove objects
@@ -75,7 +75,7 @@ All core requirements have been implemented and are working:
 ### MVP Requirements - ALL COMPLETE
 
 - ✅ Canvas with pan/zoom
-- ✅ Shape creation & movement (rectangles and ellipses)
+- ✅ Shape creation & movement (rectangles, ellipses, and triangles)
 - ✅ Real-time 2+ user sync
 - ✅ Multiplayer cursors with labels
 - ✅ Online presence list (modal)
@@ -146,7 +146,8 @@ All core requirements have been implemented and are working:
 ### Feature Additions
 
 - ✅ **Ellipse Support** - Added ellipse creation alongside rectangles
-- ✅ **Unified Transformation** - Both shapes use same manipulation system
+- ✅ **Triangle Support** - Added triangle creation with proper coordinate handling
+- ✅ **Unified Transformation** - All shapes use same manipulation system
 - ✅ **Alignment Toolbar** - Complete dropdown menu with alignment and distribution options
 - ✅ **Enhanced Testing** - Added comprehensive testing guides
 

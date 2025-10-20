@@ -17,3 +17,6 @@ WHERE owner = 'all' AND created_by IS NOT NULL;
 UPDATE public.canvas_objects 
 SET owner = 'all' 
 WHERE owner = 'all' AND created_by IS NULL;
+
+
+

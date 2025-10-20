@@ -369,11 +369,9 @@ export class CanvasAI {
         color: params.color,
         rotation: 0,
       });
-      console.log("🎨 createTriangle result:", result);
 
       // Initialize ownership and add to local state if state updater is available
       if (result && this.stateUpdater) {
-        console.log("🎨 Initializing ownership for triangle:", result.id);
         await this.stateUpdater.initializeOwnership(
           result,
           this.operations["user"].id,

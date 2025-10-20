@@ -8,6 +8,11 @@ The CollabCanvas MVP has been successfully completed and delivered. All core req
 
 ## Recent Updates (Latest Session)
 
+- ✅ **Triangle Coordinate Fix** - Fixed triangle drag/transform coordinate handling to match rectangle logic
+- ✅ **Triangle Component Alignment** - Aligned Triangle component interface and patterns with Rectangle
+- ✅ **Triangle Ownership System** - Added complete ownership claiming and styling logic to triangles
+- ✅ **Triangle Event Handling** - Added missing handleDragStart and updated all event handlers
+- ✅ **Triangle AI Consistency** - Fixed inconsistency between AI chatbox commands and manual interactions
 - ✅ **Alignment Toolbar Implementation** - Complete dropdown menu with alignment and distribution options
 - ✅ **Semantic Alignment Fix** - Fixed "Align Vertically" vs "Align Horizontally" semantic mapping
 - ✅ **Distribution Functions** - Added horizontal and vertical distribution with bounds preservation
@@ -22,7 +27,7 @@ The CollabCanvas MVP has been successfully completed and delivered. All core req
 ### Core Functionality
 
 - ✅ **Canvas with Pan/Zoom** - Smooth navigation with 10%-500% zoom range
-- ✅ **Shape Creation** - Click and drag to create rectangles and ellipses with color picker
+- ✅ **Shape Creation** - Click and drag to create rectangles, ellipses, and triangles with color picker
 - ✅ **Object Manipulation** - Move, resize, select, delete, duplicate
 - ✅ **Alignment & Distribution Tools** - Complete toolbar dropdown with alignment and distribution options
 - ✅ **Real-time Sync** - Multi-user collaboration working seamlessly
@@ -60,7 +65,8 @@ The CollabCanvas MVP has been successfully completed and delivered. All core req
 ### Feature Additions
 
 - ✅ **Ellipse Support** - Added ellipse creation alongside rectangles
-- ✅ **Unified Transformation** - Both shapes use same manipulation system
+- ✅ **Triangle Support** - Added triangle creation with proper coordinate handling
+- ✅ **Unified Transformation** - All shapes use same manipulation system
 - ✅ **Enhanced Testing** - Added comprehensive testing guides
 
 ## Cancelled Features ❌

@@ -25,6 +25,7 @@ import {
   CreateObjectPayload,
   EllipseData,
   TriangleData,
+  TextboxData,
 } from "@/types/canvas";
 import { User } from "@supabase/supabase-js";
 
@@ -199,8 +200,6 @@ export class CanvasOperations {
     }
 
     try {
-      console.log("🔺 Creating triangle:", data);
-
       // Get next z-index if not provided
       const zIndex = data.z_index || (await this.getNextZIndex());
 
@@ -229,21 +228,79 @@ export class CanvasOperations {
         return null;
       }
 
-      console.log("✅ Triangle created:", newObject);
-
-      // Broadcast to other clients
-      console.log("📡 About to broadcast triangle creation:", newObject.id);
-      console.log("📡 CanvasOperations user:", this.user?.id);
       await this.realtime.broadcastObjectCreated(
         newObject,
         this.user.id,
         await this.getDisplayName()
       );
-      console.log("📡 Triangle creation broadcast completed");
 
       return newObject;
     } catch (error) {
       console.error("❌ Failed to create triangle:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Create a new textbox on the canvas
+   *
+   * @param data - TextboxData containing position, size, and text properties
+   * @returns Promise<CanvasObject | null> The created textbox or null if failed
+   */
+  async createTextbox(data: TextboxData): Promise<CanvasObject | null> {
+    if (!this.user) {
+      console.error("❌ User not authenticated");
+      return null;
+    }
+
+    try {
+      console.log("📝 Creating textbox:", data);
+
+      // Get next z-index if not provided
+      const zIndex = data.z_index || (await this.getNextZIndex());
+
+      const objectData = {
+        canvas_id: this.canvasId,
+        type: "textbox" as const,
+        x: data.x,
+        y: data.y,
+        width: data.width,
+        height: data.height,
+        color: data.color || "#000000",
+        rotation: data.rotation || 0,
+        z_index: zIndex,
+        owner: this.user.id, // Creator automatically owns the object
+        created_by: this.user.id,
+        text_content: data.text_content || "",
+        font_size: data.font_size || 16,
+        font_family: data.font_family || "Arial",
+        font_weight: data.font_weight || "normal",
+        text_align: data.text_align || "left",
+      };
+
+      const { data: newObject, error } = await this.supabase
+        .from("canvas_objects")
+        .insert([objectData])
+        .select("*")
+        .single();
+
+      if (error) {
+        console.error("❌ Error creating textbox:", error);
+        return null;
+      }
+
+      console.log("✅ Textbox created:", newObject);
+
+      // Broadcast to other clients
+      await this.realtime.broadcastObjectCreated(
+        newObject,
+        this.user.id,
+        await this.getDisplayName()
+      );
+
+      return newObject;
+    } catch (error) {
+      console.error("❌ Error creating textbox:", error);
       return null;
     }
   }
@@ -342,7 +399,10 @@ export class CanvasOperations {
         console.error("❌ Error details:", JSON.stringify(error, null, 2));
         console.error("❌ Error type:", typeof error);
         console.error("❌ Error constructor:", error.constructor.name);
-        console.error("❌ Error properties:", Object.getOwnPropertyNames(error));
+        console.error(
+          "❌ Error properties:",
+          Object.getOwnPropertyNames(error)
+        );
         console.error("❌ Error message:", error.message);
         console.error("❌ Error code:", error.code);
         console.error("❌ Error hint:", error.hint);

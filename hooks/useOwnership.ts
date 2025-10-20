@@ -215,10 +215,17 @@ export function useOwnership({
           .from("canvas_objects")
           .select("owner, created_by")
           .eq("id", objectId)
-          .single();
+          .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
 
         if (fetchError) {
           console.error("❌ Error fetching object for claim:", fetchError);
+          return false;
+        }
+
+        if (!currentObj) {
+          console.warn(
+            `⚠️ Object ${objectId} not found in database - may have been deleted`
+          );
           return false;
         }
 
@@ -235,7 +242,7 @@ export function useOwnership({
           .eq("id", objectId)
           .eq("owner", "all") // Only claim if currently available
           .select("*")
-          .single();
+          .maybeSingle();
 
         if (error) {
           // If no rows affected, object is already claimed
@@ -247,14 +254,14 @@ export function useOwnership({
               .from("canvas_objects")
               .select("owner")
               .eq("id", objectId)
-              .single();
+              .maybeSingle();
 
             // Find owner name from profiles
             const { data: ownerProfile } = await supabase
               .from("profiles")
               .select("display_name")
               .eq("id", currentObj?.owner)
-              .single();
+              .maybeSingle();
 
             onOwnershipRejected?.({
               object_id: objectId,
@@ -345,10 +352,17 @@ export function useOwnership({
           .from("canvas_objects")
           .select("owner, created_by")
           .eq("id", objectId)
-          .single();
+          .maybeSingle(); // Use maybeSingle() instead of single() to handle 0 rows gracefully
 
         if (fetchError) {
           console.error("❌ Error fetching object for release:", fetchError);
+          return false;
+        }
+
+        if (!currentObject) {
+          console.warn(
+            `⚠️ Object ${objectId} not found in database - may have been deleted`
+          );
           return false;
         }
 
@@ -529,7 +543,7 @@ export function useOwnership({
               .from("profiles")
               .select("display_name")
               .eq("id", object.owner)
-              .single();
+              .maybeSingle();
 
             ownerName = profile?.display_name || "Unknown User";
           } catch (error) {
@@ -642,7 +656,7 @@ export function useOwnership({
             .from("profiles")
             .select("display_name")
             .eq("id", newOwner)
-            .single()
+            .maybeSingle()
             .then(({ data: ownerProfile }) => {
               setOwnershipState((prev) => ({
                 ...prev,

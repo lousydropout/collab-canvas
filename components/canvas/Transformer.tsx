@@ -26,20 +26,11 @@ export default function KonvaTransformer({
     const selectedNodes = selectedIds
       .map((id) => {
         const node = stage.findOne(`#${id}`);
-        console.log(
-          `🔍 Looking for node #${id}:`,
-          node ? `${node.getClassName()} found` : "NOT FOUND"
-        );
         return node;
       })
       .filter(
         (node): node is Konva.Node => node !== null && node !== undefined
       );
-
-    console.log(
-      `🔍 Selected nodes found:`,
-      selectedNodes.map((n) => `${n.id()} (${n.getClassName()})`)
-    );
 
     if (selectedNodes.length === 0) {
       transformer.nodes([]);
@@ -108,7 +99,6 @@ export default function KonvaTransformer({
           node.height(updates.height);
         }
 
-        console.log(`🔄 Object ${id} transformed:`, updates);
         onTransform?.(id, updates);
       });
     };

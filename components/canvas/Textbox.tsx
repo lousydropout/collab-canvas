@@ -1,10 +1,9 @@
 "use client";
 
-import { Group, RegularPolygon, Rect, Text } from "react-konva";
-import Konva from "konva";
+import { Text, Group, Rect } from "react-konva";
 import { CanvasObject } from "@/types/canvas";
 
-interface TriangleProps {
+interface TextboxProps {
   object: CanvasObject;
   isSelected?: boolean;
   onSelect?: (id: string, event?: any) => void;
@@ -17,7 +16,7 @@ interface TriangleProps {
   onOwnershipExtend?: (objectId: string) => void;
 }
 
-export default function Triangle({
+export default function Textbox({
   object,
   isSelected = false,
   onSelect,
@@ -27,131 +26,7 @@ export default function Triangle({
   isPendingClaim = false,
   onClaimAttempt,
   onOwnershipExtend,
-}: TriangleProps) {
-  const handleDragStart = async (e: any) => {
-    // Aggressively stop all event propagation
-    e.cancelBubble = true;
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.preventDefault) e.preventDefault();
-
-    // Stop the event at the Konva level too
-    if (e.evt) {
-      e.evt.stopPropagation();
-      e.evt.preventDefault();
-      e.evt.cancelBubble = true;
-    }
-
-    try {
-      // If object is available, claim it first
-      if (ownershipStatus === "available" && onClaimAttempt) {
-        console.log(`🏷️ Attempting to claim object ${object.id} before drag`);
-        const claimSucceeded = await onClaimAttempt(object.id);
-
-        if (!claimSucceeded) {
-          console.log(
-            `❌ Claim failed, cancelling drag for object ${object.id}`
-          );
-          // Cancel the drag by stopping the event
-          e.target.stopDrag();
-          return;
-        }
-
-        console.log(
-          `✅ Claim succeeded, proceeding with drag for object ${object.id}`
-        );
-      }
-
-      console.log(`🏷️ Starting drag for object ${object.id}`);
-
-      // Ensure triangle is selected when starting to drag
-      if (!isSelected) {
-        onSelect?.(object.id, e);
-      }
-    } catch (error) {
-      console.error(`❌ Error in drag start for object ${object.id}:`, error);
-      // Cancel the drag on any error
-      e.target.stopDrag();
-    }
-  };
-
-  const handleDragEnd = (e: any) => {
-    // Aggressively stop all event propagation to prevent Stage drag
-    e.cancelBubble = true;
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.preventDefault) e.preventDefault();
-
-    // Stop the event at the Konva level too
-    if (e.evt) {
-      e.evt.stopPropagation();
-      e.evt.preventDefault();
-      e.evt.cancelBubble = true;
-    }
-
-    const node = e.target;
-    const centerX = node.x();
-    const centerY = node.y();
-
-    // Convert from center coordinates back to top-left bounding box coordinates
-    // Triangle is stored as a rectangle in the database, so use rectangle logic
-    const newX = centerX - object.width / 2;
-    const newY = centerY - object.height / 2;
-
-    onMove?.(object.id, { x: newX, y: newY });
-
-    // Extend ownership after drag
-    onOwnershipExtend?.(object.id);
-  };
-
-  const handleTransformEnd = (e: any) => {
-    const node = e.target;
-    const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
-    const centerX = node.x();
-    const centerY = node.y();
-    const radius = (node as any).radius();
-
-    // Reset scale to 1 and update radius instead
-    node.scaleX(1);
-    node.scaleY(1);
-
-    const newWidth = Math.max(5, object.width * scaleX);
-    const newHeight = Math.max(5, object.height * scaleY);
-
-    // Convert from center coordinates back to top-left bounding box coordinates
-    // Triangle is stored as a rectangle in the database, so use rectangle logic
-    const newX = centerX - newWidth / 2;
-    const newY = centerY - newHeight / 2;
-
-    onMove?.(object.id, {
-      x: newX,
-      y: newY,
-      width: newWidth,
-      height: newHeight,
-      rotation: node.rotation(),
-    });
-    onOwnershipExtend?.(object.id);
-  };
-
-  // Calculate triangle properties for RegularPolygon
-  const getTriangleProps = () => {
-    const { x, y, width, height } = object;
-
-    // For RegularPolygon, we need to position it so the bounding box matches our stored coordinates
-    // RegularPolygon draws from center, so we need to offset to match the expected bounding box
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
-
-    // Use the smaller dimension as radius to ensure triangle fits in bounding box
-    const radius = Math.min(width, height) / 2;
-
-    return {
-      x: centerX,
-      y: centerY,
-      radius: radius,
-      sides: 3, // Makes it a triangle
-    };
-  };
-
+}: TextboxProps) {
   // Calculate ownership-based styling
   const getOwnershipStyling = () => {
     if (isPendingClaim) {
@@ -243,21 +118,100 @@ export default function Triangle({
     }
   };
 
-  const triangleProps = getTriangleProps();
+  const handleDragStart = async (e: any) => {
+    // Aggressively stop all event propagation
+    e.cancelBubble = true;
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+
+    // Stop the event at the Konva level too
+    if (e.evt) {
+      e.evt.stopPropagation();
+      e.evt.preventDefault();
+      e.evt.cancelBubble = true;
+    }
+
+    try {
+      // If object is available, claim it first
+      if (ownershipStatus === "available" && onClaimAttempt) {
+        console.log(`🏷️ Attempting to claim object ${object.id} before drag`);
+        const claimSucceeded = await onClaimAttempt(object.id);
+
+        if (!claimSucceeded) {
+          console.log(
+            `❌ Claim failed, cancelling drag for object ${object.id}`
+          );
+          // Cancel the drag by stopping the event
+          e.target.stopDrag();
+          return;
+        }
+
+        console.log(
+          `✅ Claim succeeded, proceeding with drag for object ${object.id}`
+        );
+      }
+
+      console.log(`🏷️ Starting drag for object ${object.id}`);
+
+      // Ensure textbox is selected when starting to drag
+      if (!isSelected) {
+        onSelect?.(object.id, e);
+      }
+    } catch (error) {
+      console.error(`❌ Error in drag start for object ${object.id}:`, error);
+      // Cancel the drag on any error
+      e.target.stopDrag();
+    }
+  };
+
+  const handleDragEnd = (e: any) => {
+    // Aggressively stop all event propagation to prevent Stage drag
+    e.cancelBubble = true;
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+
+    // Stop the event at the Konva level too
+    if (e.evt) {
+      e.evt.stopPropagation();
+      e.evt.preventDefault();
+      e.evt.cancelBubble = true;
+    }
+
+    const node = e.target;
+    const newPos = {
+      x: node.x(),
+      y: node.y(),
+    };
+    console.log(
+      `📦 Textbox moved to: (${newPos.x.toFixed(1)}, ${newPos.y.toFixed(1)})`
+    );
+    onMove?.(object.id, newPos);
+
+    // Extend ownership after drag
+    onOwnershipExtend?.(object.id);
+  };
+
   const ownershipStyling = getOwnershipStyling();
 
   // Show owner label for objects owned by others
   const showOwnerLabel = ownershipStatus === "claimed" && ownerInfo?.owner_name;
 
+  // Get text properties
+  const fontSize = object.font_size || 16;
+  const fontFamily = object.font_family || "Arial";
+  const fontWeight = object.font_weight || "normal";
+  const textAlign = object.text_align || "left";
+
   return (
     <Group>
-      <RegularPolygon
+      {/* Background rectangle for textbox */}
+      <Rect
         id={object.id}
-        x={triangleProps.x}
-        y={triangleProps.y}
-        radius={triangleProps.radius}
-        sides={triangleProps.sides}
-        fill={object.color}
+        x={object.x}
+        y={object.y}
+        width={object.width}
+        height={object.height}
+        fill="transparent"
         rotation={object.rotation}
         draggable={
           canInteract &&
@@ -269,7 +223,6 @@ export default function Triangle({
         onTap={handleClick}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onTransformEnd={handleTransformEnd}
         // Apply ownership-based styling
         stroke={ownershipStyling.stroke}
         strokeWidth={ownershipStyling.strokeWidth}
@@ -282,16 +235,23 @@ export default function Triangle({
         // Show not-allowed cursor for objects owned by others
         listening={canInteract}
         cursor={canInteract ? "pointer" : "not-allowed"}
-        getClientRect={(node: any) => {
-          // Tell Konva the actual bounds of the triangle for proper transformer positioning
-          const { x, y, width, height } = object;
-          return {
-            x: x,
-            y: y,
-            width: width,
-            height: height,
-          };
-        }}
+      />
+
+      {/* Text content */}
+      <Text
+        x={object.x + 4}
+        y={object.y + 4}
+        width={object.width - 8}
+        height={object.height - 8}
+        text={object.text_content || ""}
+        fontSize={fontSize}
+        fontFamily={fontFamily}
+        fontStyle={fontWeight}
+        align={textAlign as any}
+        fill={object.color}
+        rotation={object.rotation}
+        wrap="word"
+        listening={false}
       />
 
       {/* Owner label for objects owned by others */}

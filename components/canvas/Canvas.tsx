@@ -6,6 +6,8 @@ import Grid from "@/components/canvas/Grid";
 import Rectangle from "@/components/canvas/Rectangle";
 import Ellipse from "@/components/canvas/Ellipse";
 import Triangle from "@/components/canvas/Triangle";
+import Textbox from "@/components/canvas/Textbox";
+import TextboxEditor from "@/components/canvas/TextboxEditor";
 import KonvaTransformer from "@/components/canvas/Transformer";
 import Cursor from "@/components/canvas/Cursor";
 import CursorPositionDisplay from "@/components/canvas/CursorPositionDisplay";
@@ -66,6 +68,13 @@ export default function Canvas({
     endX: number;
     endY: number;
   } | null>(null);
+  const [isCreatingTextbox, setIsCreatingTextbox] = useState(false);
+  const [creatingTextbox, setCreatingTextbox] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
   const [isHoveringObject, setIsHoveringObject] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isUserListModalOpen, setIsUserListModalOpen] = useState(false);
@@ -76,6 +85,11 @@ export default function Canvas({
 
   // AI Chat state
   const [isAIChatVisible, setIsAIChatVisible] = useState(false);
+
+  // Textbox Editor state
+  const [isTextboxEditorCollapsed, setIsTextboxEditorCollapsed] =
+    useState(false);
+  const [selectedTextbox, setSelectedTextbox] = useState<any>(null);
 
   // Other users' cursor positions
   const [otherCursors, setOtherCursors] = useState<
@@ -205,6 +219,7 @@ export default function Canvas({
     createRectangle,
     createEllipse,
     createTriangle,
+    createTextbox,
     updateObject,
     deleteObjects,
     duplicateObjects,
@@ -403,7 +418,8 @@ export default function Canvas({
         !clickedOnEmpty ||
         (currentTool !== "rectangle" &&
           currentTool !== "ellipse" &&
-          currentTool !== "triangle")
+          currentTool !== "triangle" &&
+          currentTool !== "text")
       ) {
         return;
       }
@@ -457,6 +473,19 @@ export default function Canvas({
             endX: stagePos.x,
             endY: stagePos.y,
           });
+        } else if (currentTool === "text") {
+          console.log(
+            "📝 Starting textbox creation at stage coords:",
+            stagePos
+          );
+          setIsCreatingTextbox(true);
+          setIsDragging(false); // Reset drag state
+          setCreatingTextbox({
+            startX: stagePos.x,
+            startY: stagePos.y,
+            endX: stagePos.x,
+            endY: stagePos.y,
+          });
         }
       }
     },
@@ -480,6 +509,10 @@ export default function Canvas({
       if (currentTool === "select") {
         // Deselect all when clicking empty space
         selectObjects([]);
+
+        // Collapse textbox editor when deselecting
+        setIsTextboxEditorCollapsed(true);
+        setSelectedTextbox(null);
 
         // Release ownership of all objects when clicking empty space (unless shift is held)
         if (!isShiftClick) {
@@ -576,6 +609,27 @@ export default function Canvas({
         }
       }
 
+      // Handle textbox creation
+      if (isCreatingTextbox && creatingTextbox) {
+        if (pointerPos) {
+          // Convert screen coordinates to stage coordinates
+          const stagePos = {
+            x: (pointerPos.x - stage.x()) / stage.scaleX(),
+            y: (pointerPos.y - stage.y()) / stage.scaleY(),
+          };
+
+          setCreatingTextbox((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  endX: stagePos.x,
+                  endY: stagePos.y,
+                }
+              : null
+          );
+        }
+      }
+
       // Update cursor state for select tool
       if (currentTool === "select") {
         const target = e.target;
@@ -590,6 +644,8 @@ export default function Canvas({
       creatingEllipse,
       isCreatingTriangle,
       creatingTriangle,
+      isCreatingTextbox,
+      creatingTextbox,
       currentTool,
       realtime,
     ]
@@ -753,15 +809,78 @@ export default function Canvas({
               height,
               color: state.currentColor,
             });
-
-            console.log("✅ Triangle created!");
           } else {
-            console.log("❌ Triangle creation cancelled - distance too small");
           }
         }
 
         setIsCreatingTriangle(false);
         setCreatingTriangle(null);
+        setIsDragging(false);
+        onToolChange("select"); // Switch back to select tool
+      } else if (isCreatingTextbox && creatingTextbox) {
+        const stage = e.target.getStage();
+        const pointerPos = stage.getPointerPosition();
+
+        if (pointerPos) {
+          // Convert screen coordinates to stage coordinates
+          const stagePos = {
+            x: (pointerPos.x - stage.x()) / stage.scaleX(),
+            y: (pointerPos.y - stage.y()) / stage.scaleY(),
+          };
+
+          // Calculate L1 distance
+          const l1Distance =
+            Math.abs(stagePos.x - creatingTextbox.startX) +
+            Math.abs(stagePos.y - creatingTextbox.startY);
+
+          // Calculate viewport diagonal (using stage dimensions)
+          const stageWidth = stage.width();
+          const stageHeight = stage.height();
+          const viewportDiagonal = Math.sqrt(
+            stageWidth * stageWidth + stageHeight * stageHeight
+          );
+          const threshold = viewportDiagonal * 0.02;
+
+          console.log(
+            `📏 L1 distance: ${l1Distance.toFixed(
+              2
+            )}, threshold: ${threshold.toFixed(2)}`
+          );
+
+          // Only create textbox if distance is above threshold
+          if (l1Distance >= threshold) {
+            const width = Math.max(
+              Math.abs(stagePos.x - creatingTextbox.startX),
+              50
+            );
+            const height = Math.max(
+              Math.abs(stagePos.y - creatingTextbox.startY),
+              20
+            );
+            const x = Math.min(creatingTextbox.startX, stagePos.x);
+            const y = Math.min(creatingTextbox.startY, stagePos.y);
+
+            console.log(
+              `📝 Creating textbox: ${width}x${height} at (${x}, ${y})`
+            );
+
+            await createTextbox({
+              x,
+              y,
+              width,
+              height,
+              color: state.currentColor,
+              text_content: "Double-click to edit",
+            });
+
+            console.log("✅ Textbox created!");
+          } else {
+            console.log("❌ Textbox creation cancelled - distance too small");
+          }
+        }
+
+        setIsCreatingTextbox(false);
+        setCreatingTextbox(null);
         setIsDragging(false);
         onToolChange("select"); // Switch back to select tool
       }
@@ -773,9 +892,12 @@ export default function Canvas({
       creatingEllipse,
       isCreatingTriangle,
       creatingTriangle,
+      isCreatingTextbox,
+      creatingTextbox,
       createRectangle,
       createEllipse,
       createTriangle,
+      createTextbox,
       onToolChange,
       state.currentColor,
     ]
@@ -825,10 +947,30 @@ export default function Canvas({
           // Single select: replace selection
           selectObjects([objectId]);
           console.log(`🎯 Single selected: ${objectId}`);
+
+          // Check if selected object is a textbox and show editor
+          const selectedObject = state.objects.find(
+            (obj) => obj.id === objectId
+          );
+          if (selectedObject && selectedObject.type === "textbox") {
+            setSelectedTextbox(selectedObject);
+            setIsTextboxEditorCollapsed(false); // Show editor (not collapsed)
+            console.log(`📝 Opening textbox editor for: ${objectId}`);
+          } else {
+            // Keep editor but collapse it if selecting non-textbox
+            setIsTextboxEditorCollapsed(true);
+            setSelectedTextbox(null);
+          }
         }
       }
     },
-    [currentTool, selectObjects, state.selectedObjects, ownership]
+    [
+      currentTool,
+      selectObjects,
+      state.selectedObjects,
+      state.objects,
+      ownership,
+    ]
   );
 
   // Store refs for keyboard shortcuts to avoid stale closures without causing re-renders
@@ -938,7 +1080,6 @@ export default function Canvas({
           setCreatingTriangle(null);
           setIsDragging(false);
           onToolChange("select");
-          console.log("🚫 Cancelled triangle creation");
         } else {
           // Deselect all and release ownership
           selectObjects([]);
@@ -1102,11 +1243,18 @@ export default function Canvas({
             ? "crosshair"
             : currentTool === "triangle"
             ? "crosshair"
+            : currentTool === "text"
+            ? "crosshair"
             : currentTool === "select" && isHoveringObject
             ? "pointer"
             : "default"
         }
-        draggable={!isCreatingRect && !isCreatingEllipse && !isCreatingTriangle}
+        draggable={
+          !isCreatingRect &&
+          !isCreatingEllipse &&
+          !isCreatingTriangle &&
+          !isCreatingTextbox
+        }
       >
         <Grid
           width={dimensions.width}
@@ -1160,6 +1308,21 @@ export default function Canvas({
           } else if (object.type === "triangle") {
             return (
               <Triangle
+                key={object.id}
+                object={object}
+                isSelected={isSelected}
+                onSelect={handleObjectSelect}
+                onMove={updateObject}
+                ownershipStatus={ownershipStatus}
+                ownerInfo={ownerInfo}
+                isPendingClaim={isPendingClaim}
+                onClaimAttempt={ownership.claimObject}
+                onOwnershipExtend={ownership.extendOwnership}
+              />
+            );
+          } else if (object.type === "textbox") {
+            return (
+              <Textbox
                 key={object.id}
                 object={object}
                 isSelected={isSelected}
@@ -1293,6 +1456,14 @@ export default function Canvas({
           selectedObjects={state.selectedObjects}
         />
       )}
+
+      {/* Textbox Editor */}
+      <TextboxEditor
+        textbox={selectedTextbox}
+        isCollapsed={isTextboxEditorCollapsed}
+        onCollapsedChange={setIsTextboxEditorCollapsed}
+        onUpdate={updateObject}
+      />
 
       {/* AI Toggle Button */}
       <AIToggleButton
