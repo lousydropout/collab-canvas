@@ -48,6 +48,7 @@ export function useRealtime({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const presenceChannelRef = useRef<RealtimeChannel | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const maxReconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isReconnectingRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
 
@@ -481,7 +482,7 @@ export function useRealtime({
       error: null,
     }));
 
-    // Clear existing timeout
+    // Clear existing reconnection timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
@@ -534,7 +535,7 @@ export function useRealtime({
     }, delay);
 
     // Add a maximum reconnection timeout to prevent getting stuck
-    const maxReconnectTimeout = setTimeout(() => {
+    maxReconnectTimeoutRef.current = setTimeout(() => {
       if (isReconnectingRef.current) {
         console.log(
           "⚠️ Maximum reconnection timeout reached, forcing reset..."
@@ -547,17 +548,6 @@ export function useRealtime({
         }));
       }
     }, 60000); // 60 seconds max
-
-    // Store the max timeout ID for cleanup
-    const maxTimeoutId = maxReconnectTimeout;
-
-    // Override the clear method to also clear the max timeout
-    const originalClear = reconnectTimeoutRef.current;
-    if (originalClear) {
-      reconnectTimeoutRef.current = originalClear;
-      // Store the max timeout ID for potential cleanup
-      (reconnectTimeoutRef.current as any).maxTimeoutId = maxTimeoutId;
-    }
   }, []);
 
   // Update selected objects in presence
@@ -956,10 +946,14 @@ export function useRealtime({
         authSubscription.unsubscribe();
       }
 
-      // Clear reconnection timeout
+      // Clear reconnection timeouts
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
+      }
+      if (maxReconnectTimeoutRef.current) {
+        clearTimeout(maxReconnectTimeoutRef.current);
+        maxReconnectTimeoutRef.current = null;
       }
 
       if (channelRef.current) {
