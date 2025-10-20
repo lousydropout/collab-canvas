@@ -303,7 +303,7 @@ export default function Canvas({
   // Handle object selection (with multi-select support)
   const handleObjectSelect = useCallback(
     (objectId: string, event?: any) => {
-      if (currentTool === "select") {
+      if (currentTool === "select" || currentTool === "drag-select") {
         // Check if we can edit/select this object
         const canSelectObject = ownership.canEdit(objectId);
 
@@ -918,8 +918,8 @@ export default function Canvas({
         }
       }
 
-      // Update cursor state for select tool
-      if (currentTool === "select") {
+      // Update cursor state for select tool and drag-select tool
+      if (currentTool === "select" || currentTool === "drag-select") {
         const target = e.target;
         const isOverObject = target !== target.getStage();
         setIsHoveringObject(isOverObject);
@@ -1519,7 +1519,9 @@ export default function Canvas({
             : currentTool === "select"
             ? "grab"
             : currentTool === "drag-select"
-            ? "default"
+            ? isHoveringObject
+              ? "pointer"
+              : "default"
             : "default"
         }
         draggable={

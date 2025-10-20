@@ -169,11 +169,7 @@ const Triangle = memo(function Triangle({
     switch (ownershipStatus) {
       case "claimed_by_me":
         return {
-          stroke: "#10b981", // green for my claim
-          strokeWidth: 2,
-          shadowColor: "#10b981",
-          shadowBlur: 6,
-          shadowOpacity: 0.3,
+          // No special styling for claimed objects
         };
       case "claimed":
         return {
