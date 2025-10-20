@@ -18,7 +18,7 @@ import AIToggleButton from "@/components/ai/AIToggleButton";
 import { useCanvas } from "@/hooks/useCanvas";
 import { useOwnership } from "@/hooks/useOwnership";
 import { useAuth } from "@/contexts/AuthContext";
-import { CanvasState } from "@/types/canvas";
+import { CanvasState, CanvasObject } from "@/types/canvas";
 
 interface CanvasProps {
   className?: string;
@@ -98,6 +98,9 @@ export default function Canvas({
   const [isTextboxEditorCollapsed, setIsTextboxEditorCollapsed] =
     useState(false);
   const [selectedTextbox, setSelectedTextbox] = useState<any>(null);
+
+  // Clipboard state for copy-paste functionality
+  const [clipboard, setClipboard] = useState<CanvasObject[]>([]);
 
   // Other users' cursor positions
   const [otherCursors, setOtherCursors] = useState<
@@ -1252,6 +1255,16 @@ export default function Canvas({
     setIsCreatingTriangle,
     setCreatingTriangle,
     selectedObjects: state.selectedObjects,
+    operations,
+    stateUpdater,
+    clipboard,
+    setClipboard,
+    currentCursorPosition,
+    state,
+    createRectangle,
+    createEllipse,
+    createTriangle,
+    createTextbox,
   });
 
   // Update refs when values change
@@ -1273,6 +1286,16 @@ export default function Canvas({
       setIsCreatingTriangle,
       setCreatingTriangle,
       selectedObjects: state.selectedObjects,
+      operations,
+      stateUpdater,
+      clipboard,
+      setClipboard,
+      currentCursorPosition,
+      state,
+      createRectangle,
+      createEllipse,
+      createTriangle,
+      createTextbox,
     };
   });
 
@@ -1320,9 +1343,155 @@ export default function Canvas({
         setIsCreatingTriangle,
         setCreatingTriangle,
         selectedObjects,
+        operations,
+        stateUpdater,
+        clipboard,
+        setClipboard,
+        currentCursorPosition,
+        state,
+        createRectangle,
+        createEllipse,
+        createTriangle,
+        createTextbox,
       } = keyboardShortcutsRef.current;
 
-      if (e.key === "Delete" || e.key === "Backspace") {
+      // Ctrl key hold behavior - switch to grab tool when Ctrl is pressed
+      if (e.key === "Control" || e.key === "Meta") {
+        e.preventDefault();
+        onToolChange("select");
+        console.log("🖱️ Ctrl pressed - Switched to Grab tool");
+        return; // Don't process other shortcuts when Ctrl is pressed
+      }
+
+      // Tool shortcuts (only when no modifier keys are pressed)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        switch (e.key.toLowerCase()) {
+          case "m":
+            e.preventDefault();
+            onToolChange("select");
+            console.log("🖱️ Switched to Grab tool (M)");
+            break;
+          case "s":
+            e.preventDefault();
+            onToolChange("drag-select");
+            console.log("🖱️ Switched to Drag Select tool (S)");
+            break;
+          case "r":
+            e.preventDefault();
+            onToolChange("rectangle");
+            console.log("🖱️ Switched to Rectangle tool (R)");
+            break;
+          case "e":
+          case "c":
+            e.preventDefault();
+            onToolChange("ellipse");
+            console.log("🖱️ Switched to Ellipse tool (E/C)");
+            break;
+          case "a":
+            e.preventDefault();
+            onToolChange("triangle");
+            console.log("🖱️ Switched to Triangle tool (A)");
+            break;
+          case "t":
+            e.preventDefault();
+            onToolChange("text");
+            console.log("🖱️ Switched to Text tool (T)");
+            break;
+        }
+      }
+
+      // Copy-paste shortcuts
+      if (e.key === "c" && (e.ctrlKey || e.metaKey)) {
+        // Copy selected objects (Ctrl/Cmd + C)
+        console.log("📋 Copy operation triggered");
+        console.log("📋 Selected objects:", selectedObjects);
+        console.log("📋 State objects:", state.objects.length);
+        console.log("📋 Operations available:", !!operations);
+
+        if (selectedObjects.length > 0 && operations) {
+          e.preventDefault();
+          const objectsToCopy = state.objects.filter((obj) =>
+            selectedObjects.includes(obj.id)
+          );
+          console.log("📋 Objects to copy:", objectsToCopy.length);
+          setClipboard(objectsToCopy);
+          console.log(`📋 Copied ${objectsToCopy.length} objects to clipboard`);
+        } else {
+          console.log("📋 No objects selected or operations not available");
+        }
+      } else if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
+        // Paste objects (Ctrl/Cmd + V)
+        if (clipboard.length > 0 && operations && currentCursorPosition) {
+          e.preventDefault();
+
+          // Calculate the offset from the original copy position to current cursor position
+          // Use the first object's original position as reference
+          const referenceObj = clipboard[0];
+          const offsetX = currentCursorPosition.x - referenceObj.x;
+          const offsetY = currentCursorPosition.y - referenceObj.y;
+
+          console.log(
+            `📋 Pasting ${clipboard.length} objects at cursor position (${currentCursorPosition.x}, ${currentCursorPosition.y})`
+          );
+
+          // Create each object using the proper creation methods
+          const pastePromises = clipboard.map(async (obj) => {
+            const newPosition = {
+              type: obj.type,
+              x: obj.x + offsetX,
+              y: obj.y + offsetY,
+              width: obj.width,
+              height: obj.height,
+              color: obj.color,
+              rotation: obj.rotation,
+            };
+
+            switch (obj.type) {
+              case "rectangle":
+                return await createRectangle(newPosition);
+              case "ellipse":
+                return await createEllipse(newPosition);
+              case "triangle":
+                return await createTriangle(newPosition);
+              case "textbox":
+                return await createTextbox({
+                  ...newPosition,
+                  text_content: obj.text_content || "Double-click to edit",
+                  font_size: obj.font_size,
+                  font_family: obj.font_family,
+                  font_weight: obj.font_weight,
+                  text_align: obj.text_align,
+                });
+              default:
+                console.warn(`⚠️ Unknown object type for paste: ${obj.type}`);
+                return null;
+            }
+          });
+
+          // Wait for all objects to be created
+          Promise.all(pastePromises)
+            .then((createdObjects) => {
+              const successfulObjects = createdObjects.filter(
+                (obj) => obj !== null
+              );
+
+              if (successfulObjects.length > 0) {
+                // Select the newly pasted objects
+                selectObjects(successfulObjects.map((obj) => obj!.id));
+                console.log(
+                  `📋 Successfully pasted ${successfulObjects.length} objects`
+                );
+              } else {
+                console.log("📋 No objects were successfully pasted");
+              }
+            })
+            .catch((error) => {
+              console.error("❌ Error during paste operation:", error);
+            });
+        } else if (clipboard.length > 0 && !currentCursorPosition) {
+          console.log("📋 Cannot paste: cursor not on canvas");
+        }
+      } else if (e.key === "Delete" || e.key === "Backspace") {
         // Delete selected objects
         if (selectedObjects.length > 0) {
           e.preventDefault();
@@ -1372,9 +1541,31 @@ export default function Canvas({
       }
     };
 
+    // Handle Ctrl key hold behavior for tool switching
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Only handle when no input is focused
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      const { onToolChange } = keyboardShortcutsRef.current;
+
+      // Ctrl key released - switch to drag select tool
+      if (e.key === "Control" || e.key === "Meta") {
+        e.preventDefault();
+        onToolChange("drag-select");
+        console.log("🖱️ Ctrl released - Switched to Drag Select tool");
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
     };
   }, []); // Empty deps - handler uses refs to access current values
 

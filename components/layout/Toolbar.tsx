@@ -311,7 +311,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Drag Select Tool (Area)"
+          title="Drag Select Tool (Area) - S"
           onClick={() => onToolChange("drag-select")}
         >
           <MousePointer2 className="h-4 w-4" />
@@ -325,7 +325,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Grab Tool (Pan Canvas)"
+          title="Grab Tool (Pan Canvas) - M"
           onClick={() => onToolChange("select")}
         >
           <Hand className="h-4 w-4" />
@@ -339,7 +339,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Rectangle Tool"
+          title="Rectangle Tool - R"
           onClick={() => onToolChange("rectangle")}
         >
           <Square className="h-4 w-4" />
@@ -353,7 +353,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Ellipse Tool"
+          title="Ellipse Tool - E/C"
           onClick={() => onToolChange("ellipse")}
         >
           <Circle className="h-4 w-4" />
@@ -367,7 +367,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Triangle Tool"
+          title="Triangle Tool - A"
           onClick={() => onToolChange("triangle")}
         >
           <Triangle className="h-4 w-4" />
@@ -381,7 +381,7 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Text Tool"
+          title="Text Tool - T"
           onClick={() => onToolChange("text")}
         >
           <Type className="h-4 w-4" />
