@@ -1,18 +1,14 @@
-# CollabCanvas MVP ✅
-
-**🎉 MVP SUCCESSFULLY DELIVERED!**
+# CollabCanvas ✅
 
 A real-time collaborative canvas application where multiple users can create and manipulate rectangles simultaneously on a shared canvas, with live cursor tracking and presence awareness.
 
 ## 🎯 Project Overview
 
-CollabCanvas is a completed MVP for a collaborative design tool that enables multiple users to work together in real-time on a shared canvas. Users can create, move, resize, and delete rectangles while seeing each other's cursors and presence. The system prevents race conditions through an ownership mechanism where objects must be selected and claimed before modification.
+CollabCanvas is a collaborative design tool that enables multiple users to work together in real-time on a shared canvas. Users can create, move, resize, and delete rectangles while seeing each other's cursors and presence. The system prevents race conditions through an ownership mechanism where objects must be selected and claimed before modification.
 
-**Status:** ✅ **COMPLETE** - All MVP requirements met and performance targets achieved.
+**Status:** ✅ **COMPLETE** - All project requirements met and performance targets achieved.
 
 ## 🏗️ Architecture
-
-![CollabCanvas Architecture](./diagram.png)
 
 The application uses a dual-channel real-time architecture with direct database operations for ownership management.
 
@@ -255,6 +251,30 @@ bunx supabase db reset
 bunx supabase stop
 ```
 
+## 🤖 AI Commands
+
+CollabCanvas includes AI-powered natural language commands that let you create and modify objects using simple text instructions.
+
+### Command Types
+
+1. **Generate Objects**
+
+   - "Create rectangle"
+   - "Add triangle at top-right"
+   - "Make rectangle that's taller than it is long"
+   - "Add a 200x15 rectangle"
+
+2. **Generate Multiple Objects**
+
+   - "Add 3 blue circles of different sizes"
+   - "16 rectangles on a 4x4 grid"
+   - "34 rectangles at random positions"
+
+3. **Modify Selected Objects**
+   - "Turn blue"
+   - "Make 2x as large"
+   - "Move to bottom-left"
+
 ## 📊 Performance Targets ✅
 
 - **✅ 60 FPS** - Maintained during all interactions with batching system
@@ -283,7 +303,7 @@ The application is deployed on Vercel and publicly accessible at [https://collab
 
 ## 🎯 Success Criteria ✅
 
-### MVP Requirements - ALL COMPLETE
+### Core Requirements - ALL COMPLETE
 
 - ✅ Canvas with pan/zoom
 - ✅ Rectangle creation & movement
@@ -463,7 +483,7 @@ Canvas: Rectangle appears with blue color
 
 ## 🤝 Contributing
 
-This MVP is complete and successful. Recent improvements include:
+This project is complete and successful. Recent improvements include:
 
 - **Ellipse Support** - Added ellipse creation and manipulation
 - **Batching System** - Optimized updates for smoother multi-user collaboration
@@ -485,4 +505,4 @@ This project is part of a development challenge demonstrating AI-assisted develo
 
 ---
 
-**The CollabCanvas MVP has been successfully delivered with all requirements met and performance targets achieved.**
+**CollabCanvas has been successfully delivered with all requirements met and performance targets achieved.**
