@@ -186,7 +186,13 @@ export interface CanvasState {
   /** Array of IDs of currently selected objects */
   selectedObjects: string[];
   /** Currently active tool */
-  tool: "select" | "rectangle" | "ellipse" | "triangle" | "text";
+  tool:
+    | "select"
+    | "drag-select"
+    | "rectangle"
+    | "ellipse"
+    | "triangle"
+    | "text";
   /** Whether user is currently creating a new object */
   isCreating: boolean;
   /** Current color selection for new objects */

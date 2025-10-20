@@ -16,12 +16,12 @@ import {
   Circle,
   Triangle,
   Type,
+  Hand,
   AlignHorizontalJustifyCenter,
   ChevronDown,
 } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { CanvasState } from "@/types/canvas";
-import ZIndexControls from "@/components/layout/ZIndexControls";
 import { CanvasOperations } from "@/lib/canvas/CanvasOperations";
 
 interface ToolbarProps {
@@ -304,6 +304,20 @@ export default function Toolbar({
       {/* Tools Section */}
       <div className="space-y-2 flex flex-col items-center">
         <Button
+          variant={currentTool === "drag-select" ? "default" : "ghost"}
+          size="sm"
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
+            currentTool === "drag-select"
+              ? "!bg-blue-600 !text-white hover:!bg-blue-700"
+              : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
+          }`}
+          title="Drag Select Tool (Area)"
+          onClick={() => onToolChange("drag-select")}
+        >
+          <MousePointer2 className="h-4 w-4" />
+        </Button>
+
+        <Button
           variant={currentTool === "select" ? "default" : "ghost"}
           size="sm"
           className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
@@ -311,10 +325,10 @@ export default function Toolbar({
               ? "!bg-blue-600 !text-white hover:!bg-blue-700"
               : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
           }`}
-          title="Select Tool"
+          title="Grab Tool (Pan Canvas)"
           onClick={() => onToolChange("select")}
         >
-          <MousePointer2 className="h-4 w-4" />
+          <Hand className="h-4 w-4" />
         </Button>
 
         <Button
@@ -442,18 +456,6 @@ export default function Toolbar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Z-Index Controls Section */}
-      <div className="mt-6">
-        <ZIndexControls
-          selectedObjects={selectedObjects}
-          operations={operations}
-          onOperationComplete={() => {
-            // Optional: Add any post-operation logic here
-            console.log("Z-index operation completed");
-          }}
-        />
       </div>
 
       {/* Color Picker Section - Pushed to Bottom */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { Rect } from "react-konva";
 import CanvasStage from "@/components/canvas/CanvasStage";
 import Grid from "@/components/canvas/Grid";
 import Rectangle from "@/components/canvas/Rectangle";
@@ -70,6 +71,13 @@ export default function Canvas({
   } | null>(null);
   const [isCreatingTextbox, setIsCreatingTextbox] = useState(false);
   const [creatingTextbox, setCreatingTextbox] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
+  const [isDragSelecting, setIsDragSelecting] = useState(false);
+  const [dragSelectRect, setDragSelectRect] = useState<{
     startX: number;
     startY: number;
     endX: number;
@@ -667,7 +675,8 @@ export default function Canvas({
         (currentTool !== "rectangle" &&
           currentTool !== "ellipse" &&
           currentTool !== "triangle" &&
-          currentTool !== "text")
+          currentTool !== "text" &&
+          currentTool !== "drag-select")
       ) {
         return;
       }
@@ -682,7 +691,17 @@ export default function Canvas({
           y: (pointerPos.y - stage.y()) / stage.scaleY(),
         };
 
-        if (currentTool === "rectangle") {
+        if (currentTool === "drag-select") {
+          console.log("🖐️ Starting drag selection at stage coords:", stagePos);
+          setIsDragSelecting(true);
+          setIsDragging(false); // Reset drag state
+          setDragSelectRect({
+            startX: stagePos.x,
+            startY: stagePos.y,
+            endX: stagePos.x,
+            endY: stagePos.y,
+          });
+        } else if (currentTool === "rectangle") {
           console.log(
             "🚀 Starting rectangle creation at stage coords:",
             stagePos
@@ -878,6 +897,27 @@ export default function Canvas({
         }
       }
 
+      // Handle drag selection
+      if (isDragSelecting && dragSelectRect) {
+        if (pointerPos) {
+          // Convert screen coordinates to stage coordinates
+          const stagePos = {
+            x: (pointerPos.x - stage.x()) / stage.scaleX(),
+            y: (pointerPos.y - stage.y()) / stage.scaleY(),
+          };
+
+          setDragSelectRect((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  endX: stagePos.x,
+                  endY: stagePos.y,
+                }
+              : null
+          );
+        }
+      }
+
       // Update cursor state for select tool
       if (currentTool === "select") {
         const target = e.target;
@@ -894,6 +934,8 @@ export default function Canvas({
       creatingTriangle,
       isCreatingTextbox,
       creatingTextbox,
+      isDragSelecting,
+      dragSelectRect,
       currentTool,
       realtime,
     ]
@@ -1131,6 +1173,43 @@ export default function Canvas({
         setCreatingTextbox(null);
         setIsDragging(false);
         onToolChange("select"); // Switch back to select tool
+      } else if (isDragSelecting && dragSelectRect) {
+        // Handle drag selection completion
+        const x1 = Math.min(dragSelectRect.startX, dragSelectRect.endX);
+        const x2 = Math.max(dragSelectRect.startX, dragSelectRect.endX);
+        const y1 = Math.min(dragSelectRect.startY, dragSelectRect.endY);
+        const y2 = Math.max(dragSelectRect.startY, dragSelectRect.endY);
+
+        console.log(
+          `🖐️ Drag selection completed: (${x1.toFixed(1)}, ${y1.toFixed(
+            1
+          )}) to (${x2.toFixed(1)}, ${y2.toFixed(1)})`
+        );
+
+        // Find all objects that intersect with the selection rectangle
+        const selectedIds = state.objects
+          .filter((obj) => {
+            // Check if object bounds intersect with selection rectangle
+            const objX1 = obj.x;
+            const objX2 = obj.x + obj.width;
+            const objY1 = obj.y;
+            const objY2 = obj.y + obj.height;
+
+            // Objects intersect if they overlap in both X and Y axes
+            const intersectsX = objX1 < x2 && objX2 > x1;
+            const intersectsY = objY1 < y2 && objY2 > y1;
+
+            return intersectsX && intersectsY;
+          })
+          .map((obj) => obj.id);
+
+        console.log(
+          `🎯 Selected ${selectedIds.length} objects via drag selection`
+        );
+        selectObjects(selectedIds);
+
+        setIsDragSelecting(false);
+        setDragSelectRect(null);
       }
     },
     [
@@ -1142,10 +1221,14 @@ export default function Canvas({
       creatingTriangle,
       isCreatingTextbox,
       creatingTextbox,
+      isDragSelecting,
+      dragSelectRect,
+      state.objects,
       createRectangle,
       createEllipse,
       createTriangle,
       createTextbox,
+      selectObjects,
       onToolChange,
       state.currentColor,
     ]
@@ -1332,6 +1415,16 @@ export default function Canvas({
       }
     : null;
 
+  // Calculate drag selection rectangle dimensions for preview
+  const previewDragSelect = dragSelectRect
+    ? {
+        x: Math.min(dragSelectRect.startX, dragSelectRect.endX),
+        y: Math.min(dragSelectRect.startY, dragSelectRect.endY),
+        width: Math.abs(dragSelectRect.endX - dragSelectRect.startX),
+        height: Math.abs(dragSelectRect.endY - dragSelectRect.startY),
+      }
+    : null;
+
   return (
     <div
       ref={containerRef}
@@ -1423,15 +1516,18 @@ export default function Canvas({
             ? "crosshair"
             : currentTool === "text"
             ? "crosshair"
-            : currentTool === "select" && isHoveringObject
-            ? "pointer"
+            : currentTool === "select"
+            ? "grab"
+            : currentTool === "drag-select"
+            ? "default"
             : "default"
         }
         draggable={
           !isCreatingRect &&
           !isCreatingEllipse &&
           !isCreatingTriangle &&
-          !isCreatingTextbox
+          !isCreatingTextbox &&
+          !isDragSelecting
         }
       >
         <Grid
@@ -1536,6 +1632,23 @@ export default function Canvas({
               }}
               isSelected={false}
               ownershipStatus="available"
+            />
+          )}
+
+        {/* Drag selection rectangle preview */}
+        {previewDragSelect &&
+          previewDragSelect.width > 0 &&
+          previewDragSelect.height > 0 && (
+            <Rect
+              x={previewDragSelect.x}
+              y={previewDragSelect.y}
+              width={previewDragSelect.width}
+              height={previewDragSelect.height}
+              fill="rgba(59, 130, 246, 0.1)"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dash={[5, 5]}
+              listening={false}
             />
           )}
       </CanvasStage>

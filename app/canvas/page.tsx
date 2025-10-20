@@ -22,7 +22,8 @@ const Canvas = dynamic(() => import("@/components/canvas/Canvas"), {
 export default function CanvasPage() {
   const { user, profile, loading, signOut } = useAuth();
   const router = useRouter();
-  const [currentTool, setCurrentTool] = useState<CanvasState["tool"]>("select");
+  const [currentTool, setCurrentTool] =
+    useState<CanvasState["tool"]>("drag-select");
   const [currentColor, setCurrentColor] = useState(loadColorFromLocalStorage());
   const [selectedObjects, setSelectedObjects] = useState<string[]>([]);
   const [operations, setOperations] = useState<any>(null); // Will be set by Canvas component
