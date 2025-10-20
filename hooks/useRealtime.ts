@@ -625,17 +625,23 @@ export function useRealtime({
         if (newRecord && oldRecord && newRecord.owner !== oldRecord.owner) {
           // Skip processing if this is a rapid change from undefined to a user ID
           // This prevents infinite loops during object creation
-          // Only skip if the object was just created (has created_by field)
+          // Only skip if the object was just created (has created_by field) AND it's within 1 second
+          const now = Date.now();
+          const createdAt = new Date(newRecord.created_at).getTime();
+          const timeSinceCreation = now - createdAt;
+
           if (
             oldRecord.owner === undefined &&
             newRecord.owner &&
             newRecord.owner !== "all" &&
-            newRecord.created_by === newRecord.owner
+            newRecord.created_by === newRecord.owner &&
+            timeSinceCreation < 1000 // Only skip if created within last 1 second
           ) {
             console.log(
               "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
               newRecord.id,
-              `${oldRecord.owner} → ${newRecord.owner}`
+              `${oldRecord.owner} → ${newRecord.owner}`,
+              `(created ${timeSinceCreation}ms ago)`
             );
             return;
           }

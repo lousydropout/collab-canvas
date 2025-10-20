@@ -513,10 +513,13 @@ export function useOwnership({
         `🏷️ Handling new object created: ${object.id}, owner: ${object.owner}, creator: ${creatorUserId}`
       );
 
-      // Only process if object has an owner that's not 'all'
-      if (object.owner && object.owner !== "all") {
+      // Process objects with any owner (including 'all')
+      if (object.owner) {
         // Determine if this is our own object
         const isMyObject = object.owner === user?.id;
+
+        // For objects with owner = 'all', treat them as available for claiming
+        const isAvailable = object.owner === "all";
 
         // Use provided display name or fetch it
         let ownerName = creatorDisplayName || "Unknown User";
@@ -541,12 +544,14 @@ export function useOwnership({
         setOwnershipState((prev) => ({
           ...prev,
           [object.id]: {
-            owner_id: object.owner,
-            owner_name: ownerName,
-            claimed_at: new Date().toISOString(),
-            expires_at: new Date(
-              Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS
-            ).toISOString(),
+            owner_id: isAvailable ? "all" : object.owner,
+            owner_name: isAvailable ? "Available" : ownerName,
+            claimed_at: isAvailable ? null : new Date().toISOString(),
+            expires_at: isAvailable
+              ? null
+              : new Date(
+                  Date.now() + OWNERSHIP_CONFIG.CLAIM_DURATION_MS
+                ).toISOString(),
             is_claimed_by_me: isMyObject,
           },
         }));
@@ -584,17 +589,23 @@ export function useOwnership({
       if (newOwner !== oldOwner) {
         // Skip processing if this is a rapid change from undefined to a user ID
         // This prevents infinite loops during object creation
-        // Only skip if the object was just created (has created_by field)
+        // Only skip if the object was just created (has created_by field) AND it's within 1 second
+        const now = Date.now();
+        const createdAt = new Date(newRecord.created_at).getTime();
+        const timeSinceCreation = now - createdAt;
+
         if (
           oldOwner === undefined &&
           newOwner &&
           newOwner !== "all" &&
-          newRecord.created_by === newOwner
+          newRecord.created_by === newOwner &&
+          timeSinceCreation < 1000 // Only skip if created within last 1 second
         ) {
           console.log(
             "⚠️ Skipping rapid ownership change from undefined to user - likely object creation:",
             objectId,
-            `${oldOwner} → ${newOwner}`
+            `${oldOwner} → ${newOwner}`,
+            `(created ${timeSinceCreation}ms ago)`
           );
           return;
         }

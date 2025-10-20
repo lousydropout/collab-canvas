@@ -199,7 +199,7 @@ export class CanvasAI {
    */
   private applyDefaults(commandData: AICommand): {
     command: "create" | "modify" | "layout";
-    objectType: "rectangle" | "ellipse" | "square" | "circle";
+    objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
     x: number;
     y: number;
     width: number;
@@ -226,6 +226,10 @@ export class CanvasAI {
         const size = Math.round(this.canvasSize.width * 0.1);
         width = size;
         height = size;
+      } else if (commandData.objectType === "triangle") {
+        // Default triangle, 10% of viewport dimensions
+        width = Math.round(this.canvasSize.width * 0.1);
+        height = Math.round(this.canvasSize.height * 0.1);
       } else {
         // Default rectangle, 10% of viewport dimensions
         width = Math.round(this.canvasSize.width * 0.1);
@@ -356,6 +360,38 @@ export class CanvasAI {
         success: true,
         commandData: params,
       };
+    } else if (normalizedObjectType === "triangle") {
+      const result = await this.operations.createTriangle({
+        x: params.x,
+        y: params.y,
+        width: params.width,
+        height: params.height,
+        color: params.color,
+        rotation: 0,
+      });
+      console.log("🎨 createTriangle result:", result);
+
+      // Initialize ownership and add to local state if state updater is available
+      if (result && this.stateUpdater) {
+        console.log("🎨 Initializing ownership for triangle:", result.id);
+        await this.stateUpdater.initializeOwnership(
+          result,
+          this.operations["user"].id,
+          this.operations["user"].email
+        );
+        // Add to local state immediately (CanvasOperations.createTriangle already broadcasts)
+        this.stateUpdater.addObject(result);
+      }
+
+      return {
+        message: `Successfully created a triangle at (${Math.round(
+          params.x
+        )}, ${Math.round(params.y)}) with size ${params.width}x${
+          params.height
+        }`,
+        success: true,
+        commandData: params,
+      };
     } else {
       return {
         message: "Unknown object type",
@@ -370,7 +406,7 @@ export class CanvasAI {
    */
   private async handleBatchCreation(
     args: Array<{
-      objectType: "rectangle" | "ellipse" | "square" | "circle";
+      objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
       x?: number;
       y?: number;
       width?: number;
@@ -416,6 +452,15 @@ export class CanvasAI {
           });
         } else if (normalizedObjectType === "ellipse") {
           result = await this.operations.createEllipse({
+            x: params.x,
+            y: params.y,
+            width: params.width,
+            height: params.height,
+            color: params.color,
+            rotation: 0,
+          });
+        } else if (normalizedObjectType === "triangle") {
+          result = await this.operations.createTriangle({
             x: params.x,
             y: params.y,
             width: params.width,
@@ -509,8 +554,17 @@ export class CanvasAI {
                 color,
                 rotation: 0,
               });
-            } else {
+            } else if (normalizedObjectType === "ellipse") {
               result = await this.operations.createEllipse({
+                x,
+                y,
+                width,
+                height,
+                color,
+                rotation: 0,
+              });
+            } else if (normalizedObjectType === "triangle") {
+              result = await this.operations.createTriangle({
                 x,
                 y,
                 width,
@@ -555,8 +609,17 @@ export class CanvasAI {
               color,
               rotation: 0,
             });
-          } else {
+          } else if (objectType === "ellipse") {
             result = await this.operations.createEllipse({
+              x,
+              y,
+              width,
+              height,
+              color,
+              rotation: 0,
+            });
+          } else if (objectType === "triangle") {
+            result = await this.operations.createTriangle({
               x,
               y,
               width,
@@ -673,10 +736,10 @@ export class CanvasAI {
         }
 
         // Apply absolute position changes (override deltas if both present)
-        if (commandData.newX !== null) {
+        if (commandData.newX !== null && commandData.newX !== undefined) {
           modifications.x = commandData.newX;
         }
-        if (commandData.newY !== null) {
+        if (commandData.newY !== null && commandData.newY !== undefined) {
           modifications.y = commandData.newY;
         }
 
@@ -686,23 +749,40 @@ export class CanvasAI {
           commandData.scaleBy !== undefined &&
           commandData.scaleBy !== 0
         ) {
-          modifications.width = currentObject.width * (1 + commandData.scaleBy);
-          modifications.height =
-            currentObject.height * (1 + commandData.scaleBy);
+          // scaleBy is a multiplier: 2 = 2x larger, 0.5 = half the size, etc.
+          modifications.width = currentObject.width * commandData.scaleBy;
+          modifications.height = currentObject.height * commandData.scaleBy;
+          console.log(
+            `🔧 Scaling object ${objectId}: ${currentObject.width}x${currentObject.height} * ${commandData.scaleBy} = ${modifications.width}x${modifications.height}`
+          );
         }
 
         // Apply color change
-        if (commandData.color !== null) {
+        if (commandData.color !== null && commandData.color !== undefined) {
           modifications.color = commandData.color;
         }
 
         // Apply specific size changes (override scaling if both present)
-        if (commandData.newWidth !== null) {
+        if (
+          commandData.newWidth !== null &&
+          commandData.newWidth !== undefined
+        ) {
           modifications.width = commandData.newWidth;
         }
-        if (commandData.newHeight !== null) {
+        if (
+          commandData.newHeight !== null &&
+          commandData.newHeight !== undefined
+        ) {
           modifications.height = commandData.newHeight;
         }
+
+        console.log(
+          `🔍 Debug scaling for ${objectId}: scaleBy=${commandData.scaleBy}, currentObject width=${currentObject.width}, height=${currentObject.height}`
+        );
+        console.log(
+          `🔍 All commandData values:`,
+          JSON.stringify(commandData, null, 2)
+        );
 
         // Only apply modifications if there are any
         if (Object.keys(modifications).length > 0) {

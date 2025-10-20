@@ -6,6 +6,7 @@ import {
   CanvasState,
   CreateObjectPayload,
   EllipseData,
+  TriangleData,
 } from "@/types/canvas";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -506,6 +507,58 @@ export function useCanvas(
     [operations, state.currentColor, onNewObjectCreated, user, profile]
   );
 
+  // Create new triangle
+  const createTriangle = useCallback(
+    async (data: TriangleData) => {
+      if (!operations) {
+        console.error("❌ CanvasOperations not available");
+        return null;
+      }
+
+      try {
+        console.log("🔺 Creating triangle:", data);
+
+        // Use CanvasOperations service
+        const newObject = await operations.createTriangle({
+          ...data,
+          color: data.color || state.currentColor,
+        });
+
+        if (!newObject) {
+          console.error("❌ Failed to create triangle");
+          return null;
+        }
+
+        console.log("✅ Triangle created:", newObject);
+
+        // Track this as a local operation to prevent loop when we receive our own DB change
+        localOperationsRef.current.add(newObject.id);
+
+        // Initialize ownership state FIRST (before adding to canvas state)
+        if (onNewObjectCreated) {
+          console.log(
+            "🏷️ Initializing ownership state for creator:",
+            newObject.id
+          );
+          await onNewObjectCreated(newObject, user!.id, profile?.display_name);
+        }
+
+        // Add to local state AFTER ownership is initialized (prevents race condition)
+        setState((prev) => ({
+          ...prev,
+          objects: [...prev.objects, newObject],
+          selectedObjects: [newObject.id],
+        }));
+
+        return newObject;
+      } catch (error) {
+        console.error("❌ Failed to create triangle:", error);
+        return null;
+      }
+    },
+    [operations, state.currentColor, onNewObjectCreated, user, profile]
+  );
+
   // Removed broadcastObjectUpdate - we only update on drag end now
 
   // Full update with database persistence (for final updates)
@@ -712,6 +765,7 @@ export function useCanvas(
     state,
     createRectangle,
     createEllipse,
+    createTriangle,
     updateObject,
     deleteObjects,
     duplicateObjects,

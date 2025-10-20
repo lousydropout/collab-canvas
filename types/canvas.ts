@@ -18,8 +18,8 @@ export interface CanvasObject {
   id: string
   /** Canvas identifier (currently 'default' for single canvas) */
   canvas_id: string
-  /** Type of shape - rectangle or ellipse */
-  type: 'rectangle' | 'ellipse'
+  /** Type of shape - rectangle, ellipse, or triangle */
+  type: 'rectangle' | 'ellipse' | 'triangle'
   /** X position on canvas (absolute coordinates) */
   x: number
   /** Y position on canvas (absolute coordinates) */
@@ -99,6 +99,33 @@ export interface EllipseData {
 }
 
 /**
+ * Data structure for creating or updating triangles
+ * 
+ * This interface contains only the essential fields needed to create a triangle.
+ * Optional fields will use defaults if not provided.
+ * 
+ * @interface TriangleData
+ */
+export interface TriangleData {
+  /** Optional ID (for updates) */
+  id?: string
+  /** X position on canvas */
+  x: number
+  /** Y position on canvas */
+  y: number
+  /** Width of triangle */
+  width: number
+  /** Height of triangle */
+  height: number
+  /** Optional color (defaults to current user color) */
+  color?: string
+  /** Optional rotation (defaults to 0) */
+  rotation?: number
+  /** Optional z-index (auto-assigned if not provided) */
+  z_index?: number
+}
+
+/**
  * UI state management for the canvas component
  * 
  * This interface manages the current state of the canvas UI, including
@@ -112,7 +139,7 @@ export interface CanvasState {
   /** Array of IDs of currently selected objects */
   selectedObjects: string[]
   /** Currently active tool */
-  tool: 'select' | 'rectangle' | 'ellipse' | 'text'
+  tool: 'select' | 'rectangle' | 'ellipse' | 'triangle' | 'text'
   /** Whether user is currently creating a new object */
   isCreating: boolean
   /** Current color selection for new objects */
@@ -133,7 +160,7 @@ export interface CreateObjectPayload {
   /** Optional canvas ID (defaults to 'default') */
   canvas_id?: string
   /** Type of object to create */
-  type: 'rectangle' | 'ellipse'
+  type: 'rectangle' | 'ellipse' | 'triangle'
   /** X position on canvas */
   x: number
   /** Y position on canvas */

@@ -14,6 +14,7 @@ import {
   MousePointer2,
   Square,
   Circle,
+  Triangle,
   Type,
   AlignHorizontalJustifyCenter,
   ChevronDown,
@@ -342,6 +343,20 @@ export default function Toolbar({
           onClick={() => onToolChange("ellipse")}
         >
           <Circle className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant={currentTool === "triangle" ? "default" : "ghost"}
+          size="sm"
+          className={`w-10 h-10 p-0 cursor-pointer flex items-center justify-center ${
+            currentTool === "triangle"
+              ? "!bg-blue-600 !text-white hover:!bg-blue-700"
+              : "!text-gray-700 hover:!text-gray-900 hover:!bg-gray-100"
+          }`}
+          title="Triangle Tool"
+          onClick={() => onToolChange("triangle")}
+        >
+          <Triangle className="h-4 w-4" />
         </Button>
 
         <Button

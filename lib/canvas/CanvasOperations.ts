@@ -20,7 +20,12 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { CanvasObject, CreateObjectPayload, EllipseData } from "@/types/canvas";
+import {
+  CanvasObject,
+  CreateObjectPayload,
+  EllipseData,
+  TriangleData,
+} from "@/types/canvas";
 import { User } from "@supabase/supabase-js";
 
 /**
@@ -182,6 +187,68 @@ export class CanvasOperations {
   }
 
   /**
+   * Create a new triangle on the canvas
+   *
+   * @param data - Triangle creation data
+   * @returns Promise<CanvasObject | null> The created triangle or null if failed
+   */
+  async createTriangle(data: TriangleData): Promise<CanvasObject | null> {
+    if (!this.user) {
+      console.error("❌ User not authenticated");
+      return null;
+    }
+
+    try {
+      console.log("🔺 Creating triangle:", data);
+
+      // Get next z-index if not provided
+      const zIndex = data.z_index || (await this.getNextZIndex());
+
+      const objectData = {
+        canvas_id: this.canvasId,
+        type: "triangle" as const,
+        x: data.x,
+        y: data.y,
+        width: data.width,
+        height: data.height,
+        color: data.color || "#000000",
+        rotation: data.rotation || 0,
+        z_index: zIndex,
+        owner: this.user.id, // Creator automatically owns the object
+        created_by: this.user.id,
+      };
+
+      const { data: newObject, error } = await this.supabase
+        .from("canvas_objects")
+        .insert([objectData])
+        .select("*")
+        .single();
+
+      if (error) {
+        console.error("❌ Error creating triangle:", error);
+        return null;
+      }
+
+      console.log("✅ Triangle created:", newObject);
+
+      // Broadcast to other clients
+      console.log("📡 About to broadcast triangle creation:", newObject.id);
+      console.log("📡 CanvasOperations user:", this.user?.id);
+      await this.realtime.broadcastObjectCreated(
+        newObject,
+        this.user.id,
+        await this.getDisplayName()
+      );
+      console.log("📡 Triangle creation broadcast completed");
+
+      return newObject;
+    } catch (error) {
+      console.error("❌ Failed to create triangle:", error);
+      return null;
+    }
+  }
+
+  /**
    * Create a new ellipse on the canvas
    *
    * @param data - Ellipse creation data
@@ -273,6 +340,13 @@ export class CanvasOperations {
       if (error) {
         console.error("❌ Error updating object:", error);
         console.error("❌ Error details:", JSON.stringify(error, null, 2));
+        console.error("❌ Error type:", typeof error);
+        console.error("❌ Error constructor:", error.constructor.name);
+        console.error("❌ Error properties:", Object.getOwnPropertyNames(error));
+        console.error("❌ Error message:", error.message);
+        console.error("❌ Error code:", error.code);
+        console.error("❌ Error hint:", error.hint);
+        console.error("❌ Error details:", error.details);
         console.error(
           "❌ Updates that caused error:",
           JSON.stringify(updates, null, 2)
@@ -481,7 +555,7 @@ export class CanvasOperations {
     canvasWidth: number,
     canvasHeight: number
   ): Promise<CanvasObject | null> {
-    const types = ["rectangle", "ellipse"];
+    const types = ["rectangle", "ellipse", "triangle"];
     const colors = [
       "#ff0000",
       "#00ff00",
@@ -507,8 +581,16 @@ export class CanvasOperations {
         height: randomHeight,
         color: randomColor,
       });
-    } else {
+    } else if (randomType === "ellipse") {
       return this.createEllipse({
+        x: randomX,
+        y: randomY,
+        width: randomWidth,
+        height: randomHeight,
+        color: randomColor,
+      });
+    } else {
+      return this.createTriangle({
         x: randomX,
         y: randomY,
         width: randomWidth,

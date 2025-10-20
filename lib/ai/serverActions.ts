@@ -23,7 +23,13 @@ if (process.env.OPENAI_API_KEY) {
 
 export interface AICommand {
   command: "create" | "modify" | "layout" | null;
-  objectType?: "rectangle" | "ellipse" | "square" | "circle" | null;
+  objectType?:
+    | "rectangle"
+    | "ellipse"
+    | "triangle"
+    | "square"
+    | "circle"
+    | null;
   x?: number | null;
   y?: number | null;
   width?: number | null;
@@ -46,7 +52,7 @@ export interface AICommand {
   alignType?: "left" | "right" | "center" | "top" | "bottom" | "middle" | null;
   // Batch support
   args?: Array<{
-    objectType: "rectangle" | "ellipse" | "square" | "circle";
+    objectType: "rectangle" | "ellipse" | "triangle" | "square" | "circle";
     x?: number;
     y?: number;
     width?: number;
@@ -248,6 +254,8 @@ LAYOUT OBJECTS:
 - "create a rectangle" -> single object template
 - "create a blue square" -> single object template (square = rectangle)
 - "add 3 blue circles" -> args template (circle = ellipse)
+- "create a red triangle" -> single object template
+- "make 5 triangles in a line" -> args template
 - "create a 10x10 grid of rectangles" -> pattern template (grid)
 - "create a line of 5 circles" -> pattern template (line)
 - "create random dots" -> pattern template (random)

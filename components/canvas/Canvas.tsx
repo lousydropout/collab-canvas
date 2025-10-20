@@ -5,6 +5,7 @@ import CanvasStage from "@/components/canvas/CanvasStage";
 import Grid from "@/components/canvas/Grid";
 import Rectangle from "@/components/canvas/Rectangle";
 import Ellipse from "@/components/canvas/Ellipse";
+import Triangle from "@/components/canvas/Triangle";
 import KonvaTransformer from "@/components/canvas/Transformer";
 import Cursor from "@/components/canvas/Cursor";
 import CursorPositionDisplay from "@/components/canvas/CursorPositionDisplay";
@@ -53,6 +54,13 @@ export default function Canvas({
   } | null>(null);
   const [isCreatingEllipse, setIsCreatingEllipse] = useState(false);
   const [creatingEllipse, setCreatingEllipse] = useState<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
+  const [isCreatingTriangle, setIsCreatingTriangle] = useState(false);
+  const [creatingTriangle, setCreatingTriangle] = useState<{
     startX: number;
     startY: number;
     endX: number;
@@ -196,6 +204,7 @@ export default function Canvas({
     state,
     createRectangle,
     createEllipse,
+    createTriangle,
     updateObject,
     deleteObjects,
     duplicateObjects,
@@ -392,7 +401,9 @@ export default function Canvas({
 
       if (
         !clickedOnEmpty ||
-        (currentTool !== "rectangle" && currentTool !== "ellipse")
+        (currentTool !== "rectangle" &&
+          currentTool !== "ellipse" &&
+          currentTool !== "triangle")
       ) {
         return;
       }
@@ -428,6 +439,19 @@ export default function Canvas({
           setIsCreatingEllipse(true);
           setIsDragging(false); // Reset drag state
           setCreatingEllipse({
+            startX: stagePos.x,
+            startY: stagePos.y,
+            endX: stagePos.x,
+            endY: stagePos.y,
+          });
+        } else if (currentTool === "triangle") {
+          console.log(
+            "🔺 Starting triangle creation at stage coords:",
+            stagePos
+          );
+          setIsCreatingTriangle(true);
+          setIsDragging(false); // Reset drag state
+          setCreatingTriangle({
             startX: stagePos.x,
             startY: stagePos.y,
             endX: stagePos.x,
@@ -531,6 +555,27 @@ export default function Canvas({
         }
       }
 
+      // Handle triangle creation
+      if (isCreatingTriangle && creatingTriangle) {
+        if (pointerPos) {
+          // Convert screen coordinates to stage coordinates
+          const stagePos = {
+            x: (pointerPos.x - stage.x()) / stage.scaleX(),
+            y: (pointerPos.y - stage.y()) / stage.scaleY(),
+          };
+
+          setCreatingTriangle((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  endX: stagePos.x,
+                  endY: stagePos.y,
+                }
+              : null
+          );
+        }
+      }
+
       // Update cursor state for select tool
       if (currentTool === "select") {
         const target = e.target;
@@ -543,6 +588,8 @@ export default function Canvas({
       creatingRect,
       isCreatingEllipse,
       creatingEllipse,
+      isCreatingTriangle,
+      creatingTriangle,
       currentTool,
       realtime,
     ]
@@ -662,6 +709,61 @@ export default function Canvas({
         setCreatingEllipse(null);
         setIsDragging(false);
         onToolChange("select"); // Switch back to select tool
+      } else if (isCreatingTriangle && creatingTriangle) {
+        const stage = e.target.getStage();
+        const pointerPos = stage.getPointerPosition();
+
+        if (pointerPos) {
+          // Convert screen coordinates to stage coordinates
+          const stagePos = {
+            x: (pointerPos.x - stage.x()) / stage.scaleX(),
+            y: (pointerPos.y - stage.y()) / stage.scaleY(),
+          };
+
+          // Calculate L1 distance
+          const l1Distance =
+            Math.abs(stagePos.x - creatingTriangle.startX) +
+            Math.abs(stagePos.y - creatingTriangle.startY);
+
+          // Calculate viewport diagonal (using stage dimensions)
+          const stageWidth = stage.width();
+          const stageHeight = stage.height();
+          const viewportDiagonal = Math.sqrt(
+            stageWidth * stageWidth + stageHeight * stageHeight
+          );
+          const threshold = viewportDiagonal * 0.02;
+
+          console.log(
+            `📏 L1 distance: ${l1Distance.toFixed(
+              2
+            )}, threshold: ${threshold.toFixed(2)}`
+          );
+
+          // Only create triangle if distance is above threshold
+          if (l1Distance >= threshold) {
+            const width = Math.abs(stagePos.x - creatingTriangle.startX);
+            const height = Math.abs(stagePos.y - creatingTriangle.startY);
+            const x = Math.min(creatingTriangle.startX, stagePos.x);
+            const y = Math.min(creatingTriangle.startY, stagePos.y);
+
+            await createTriangle({
+              x,
+              y,
+              width,
+              height,
+              color: state.currentColor,
+            });
+
+            console.log("✅ Triangle created!");
+          } else {
+            console.log("❌ Triangle creation cancelled - distance too small");
+          }
+        }
+
+        setIsCreatingTriangle(false);
+        setCreatingTriangle(null);
+        setIsDragging(false);
+        onToolChange("select"); // Switch back to select tool
       }
     },
     [
@@ -669,8 +771,11 @@ export default function Canvas({
       creatingRect,
       isCreatingEllipse,
       creatingEllipse,
+      isCreatingTriangle,
+      creatingTriangle,
       createRectangle,
       createEllipse,
+      createTriangle,
       onToolChange,
       state.currentColor,
     ]
@@ -740,6 +845,9 @@ export default function Canvas({
     isCreatingEllipse,
     setIsCreatingEllipse,
     setCreatingEllipse,
+    isCreatingTriangle,
+    setIsCreatingTriangle,
+    setCreatingTriangle,
     selectedObjects: state.selectedObjects,
   });
 
@@ -758,6 +866,9 @@ export default function Canvas({
       isCreatingEllipse,
       setIsCreatingEllipse,
       setCreatingEllipse,
+      isCreatingTriangle,
+      setIsCreatingTriangle,
+      setCreatingTriangle,
       selectedObjects: state.selectedObjects,
     };
   });
@@ -786,6 +897,9 @@ export default function Canvas({
         isCreatingEllipse,
         setIsCreatingEllipse,
         setCreatingEllipse,
+        isCreatingTriangle,
+        setIsCreatingTriangle,
+        setCreatingTriangle,
         selectedObjects,
       } = keyboardShortcutsRef.current;
 
@@ -819,6 +933,12 @@ export default function Canvas({
           setIsDragging(false);
           onToolChange("select");
           console.log("🚫 Cancelled ellipse creation");
+        } else if (isCreatingTriangle) {
+          setIsCreatingTriangle(false);
+          setCreatingTriangle(null);
+          setIsDragging(false);
+          onToolChange("select");
+          console.log("🚫 Cancelled triangle creation");
         } else {
           // Deselect all and release ownership
           selectObjects([]);
@@ -880,6 +1000,16 @@ export default function Canvas({
         y: Math.min(creatingEllipse.startY, creatingEllipse.endY),
         width: Math.abs(creatingEllipse.endX - creatingEllipse.startX),
         height: Math.abs(creatingEllipse.endY - creatingEllipse.startY),
+      }
+    : null;
+
+  // Calculate triangle dimensions for preview during creation
+  const previewTriangle = creatingTriangle
+    ? {
+        x: Math.min(creatingTriangle.startX, creatingTriangle.endX),
+        y: Math.min(creatingTriangle.startY, creatingTriangle.endY),
+        width: Math.abs(creatingTriangle.endX - creatingTriangle.startX),
+        height: Math.abs(creatingTriangle.endY - creatingTriangle.startY),
       }
     : null;
 
@@ -970,11 +1100,13 @@ export default function Canvas({
             ? "crosshair"
             : currentTool === "ellipse"
             ? "crosshair"
+            : currentTool === "triangle"
+            ? "crosshair"
             : currentTool === "select" && isHoveringObject
             ? "pointer"
             : "default"
         }
-        draggable={!isCreatingRect && !isCreatingEllipse}
+        draggable={!isCreatingRect && !isCreatingEllipse && !isCreatingTriangle}
       >
         <Grid
           width={dimensions.width}
@@ -1013,6 +1145,21 @@ export default function Canvas({
           } else if (object.type === "ellipse") {
             return (
               <Ellipse
+                key={object.id}
+                object={object}
+                isSelected={isSelected}
+                onSelect={handleObjectSelect}
+                onMove={updateObject}
+                ownershipStatus={ownershipStatus}
+                ownerInfo={ownerInfo}
+                isPendingClaim={isPendingClaim}
+                onClaimAttempt={ownership.claimObject}
+                onOwnershipExtend={ownership.extendOwnership}
+              />
+            );
+          } else if (object.type === "triangle") {
+            return (
+              <Triangle
                 key={object.id}
                 object={object}
                 isSelected={isSelected}
@@ -1083,6 +1230,32 @@ export default function Canvas({
                 y: previewEllipse.y,
                 width: previewEllipse.width,
                 height: previewEllipse.height,
+                color: state.currentColor,
+                rotation: 0,
+                z_index: 999999, // High z-index for preview objects
+                owner: "all",
+                created_by: null,
+                created_at: "",
+                updated_at: "",
+              }}
+              isSelected={false}
+              ownershipStatus="available"
+            />
+          )}
+
+        {/* Preview triangle during creation */}
+        {previewTriangle &&
+          previewTriangle.width > 0 &&
+          previewTriangle.height > 0 && (
+            <Triangle
+              object={{
+                id: "preview-triangle",
+                canvas_id: "default",
+                type: "triangle",
+                x: previewTriangle.x,
+                y: previewTriangle.y,
+                width: previewTriangle.width,
+                height: previewTriangle.height,
                 color: state.currentColor,
                 rotation: 0,
                 z_index: 999999, // High z-index for preview objects
