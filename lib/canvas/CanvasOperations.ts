@@ -56,6 +56,12 @@ export interface RealtimeService {
     originalIds: string[],
     newObjects: CanvasObject[]
   ) => Promise<void>;
+  /** Broadcast multiple object creations to other clients */
+  broadcastObjectsCreated: (
+    objects: CanvasObject[],
+    userId?: string,
+    displayName?: string
+  ) => Promise<void>;
 }
 
 /**
@@ -465,6 +471,100 @@ export class CanvasOperations {
     } catch (error) {
       console.error("❌ Failed to delete objects:", error);
       return false;
+    }
+  }
+
+  /**
+   * Create multiple objects in a single batch operation
+   *
+   * @param objectsData - Array of object creation data
+   * @returns Promise<CanvasObject[]> Array of created objects
+   */
+  async createObjectsBatch(
+    objectsData: Array<{
+      type: "rectangle" | "ellipse" | "triangle" | "textbox";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      color: string;
+      rotation?: number;
+      // Textbox-specific fields
+      text_content?: string;
+      font_size?: number;
+      font_family?: string;
+      font_weight?: string;
+      text_align?: string;
+    }>
+  ): Promise<CanvasObject[]> {
+    if (!this.user || objectsData.length === 0) {
+      return [];
+    }
+
+    try {
+      console.log(`🔵 Creating ${objectsData.length} objects in batch`);
+
+      // Get starting z-index for the batch
+      let nextZIndex = await this.getNextZIndex();
+
+      // Prepare all objects for batch insert
+      const batchObjects = objectsData.map((data) => {
+        const baseObject = {
+          canvas_id: this.canvasId,
+          type: data.type,
+          x: data.x,
+          y: data.y,
+          width: data.width,
+          height: data.height,
+          color: data.color,
+          rotation: data.rotation || 0,
+          z_index: nextZIndex++,
+          owner: this.user.id,
+          created_by: this.user.id,
+        };
+
+        // Add textbox-specific fields if needed
+        if (data.type === "textbox") {
+          return {
+            ...baseObject,
+            text_content: data.text_content || "",
+            font_size: data.font_size || 16,
+            font_family: data.font_family || "Arial",
+            font_weight: data.font_weight || "normal",
+            text_align: data.text_align || "left",
+          };
+        }
+
+        return baseObject;
+      });
+
+      // Single batch insert
+      const { data: newObjects, error } = await this.supabase
+        .from("canvas_objects")
+        .insert(batchObjects)
+        .select("*");
+
+      if (error) {
+        console.error("❌ Error creating objects batch:", error);
+        return [];
+      }
+
+      console.log(`✅ Created ${newObjects.length} objects in batch`);
+
+      // Single broadcast for all objects
+      if (newObjects.length > 0) {
+        const displayName = await this.getDisplayName();
+        await this.realtime.broadcastObjectsCreated(
+          newObjects,
+          this.user.id,
+          displayName
+        );
+      }
+
+      return newObjects || [];
+    } catch (error) {
+      console.error("❌ Failed to create objects batch:", error);
+      return [];
     }
   }
 

@@ -229,12 +229,220 @@ export default function Canvas({
     realtime,
     operations,
     addObjectToState,
+    addObjectsBatchToState,
   } = useCanvas(
     "default",
     ownershipHandler,
     ownership.handleNewObjectCreated,
     handleCursorUpdates
   );
+
+  // Performance monitoring
+  const performanceRef = useRef({
+    renderCount: 0,
+    lastRenderTime: 0,
+    visibleObjectCount: 0,
+  });
+
+  // Track rendering performance
+  useEffect(() => {
+    const now = performance.now();
+    const renderTime = now - performanceRef.current.lastRenderTime;
+    performanceRef.current.renderCount++;
+    performanceRef.current.lastRenderTime = now;
+    performanceRef.current.visibleObjectCount = visibleObjects.length;
+
+    if (performanceRef.current.renderCount % 10 === 0) {
+      console.log(
+        `🎨 Canvas Performance: ${visibleObjects.length}/${
+          state.objects.length
+        } objects visible, render #${
+          performanceRef.current.renderCount
+        }, time: ${renderTime.toFixed(2)}ms`
+      );
+    }
+  });
+
+  // Viewport culling utility
+  const isObjectInViewport = useCallback(
+    (object: any) => {
+      const viewportLeft = -currentStagePosition.x / currentScale;
+      const viewportTop = -currentStagePosition.y / currentScale;
+      const viewportRight = viewportLeft + dimensions.width / currentScale;
+      const viewportBottom = viewportTop + dimensions.height / currentScale;
+
+      // Check if object bounds intersect with viewport
+      const objectLeft = object.x;
+      const objectTop = object.y;
+      const objectRight = object.x + object.width;
+      const objectBottom = object.y + object.height;
+
+      return !(
+        objectRight < viewportLeft ||
+        objectLeft > viewportRight ||
+        objectBottom < viewportTop ||
+        objectTop > viewportBottom
+      );
+    },
+    [currentStagePosition, currentScale, dimensions]
+  );
+
+  // Memoized visible objects to prevent unnecessary re-renders
+  const visibleObjects = useMemo(() => {
+    return state.objects.filter(isObjectInViewport);
+  }, [state.objects, isObjectInViewport]);
+
+  // Handle object selection (with multi-select support)
+  const handleObjectSelect = useCallback(
+    (objectId: string, event?: any) => {
+      if (currentTool === "select") {
+        // Check if we can edit/select this object
+        const canSelectObject = ownership.canEdit(objectId);
+
+        if (!canSelectObject) {
+          console.log(
+            `🚫 Cannot select object ${objectId}: owned by someone else`
+          );
+          return;
+        }
+
+        const isShiftClick = event?.evt?.shiftKey || false;
+
+        // Release ownership of all other objects unless shift is held
+        if (!isShiftClick) {
+          console.log(
+            `🏷️ Releasing ownership of all objects except: ${objectId}`
+          );
+          ownership.releaseAllExcept(objectId);
+        }
+
+        if (isShiftClick) {
+          // Multi-select: add/remove from selection
+          const currentSelection = state.selectedObjects;
+          if (currentSelection.includes(objectId)) {
+            // Remove from selection
+            const newSelection = currentSelection.filter(
+              (id) => id !== objectId
+            );
+            selectObjects(newSelection);
+            console.log(`🎯 Removed from selection: ${objectId}`);
+          } else {
+            // Add to selection
+            const newSelection = [...currentSelection, objectId];
+            selectObjects(newSelection);
+            console.log(`🎯 Added to selection: ${objectId}`);
+          }
+        } else {
+          // Single select: replace selection
+          selectObjects([objectId]);
+          console.log(`🎯 Single selected: ${objectId}`);
+
+          // Check if selected object is a textbox and show editor
+          const selectedObject = state.objects.find(
+            (obj) => obj.id === objectId
+          );
+          if (selectedObject && selectedObject.type === "textbox") {
+            setSelectedTextbox(selectedObject);
+            setIsTextboxEditorCollapsed(false); // Show editor (not collapsed)
+            console.log(`📝 Opening textbox editor for: ${objectId}`);
+          } else {
+            // Keep editor but collapse it if selecting non-textbox
+            setIsTextboxEditorCollapsed(true);
+            setSelectedTextbox(null);
+          }
+        }
+      }
+    },
+    [
+      currentTool,
+      selectObjects,
+      state.selectedObjects,
+      state.objects,
+      ownership,
+    ]
+  );
+
+  // Memoized object components to prevent recreation on every render
+  const objectComponents = useMemo(() => {
+    return visibleObjects.map((object) => {
+      const isSelected = state.selectedObjects.includes(object.id);
+      const ownershipStatus = ownership.getOwnershipStatus(object.id);
+      const ownerInfo = ownership.getOwnerInfo(object.id);
+      const isPendingClaim = ownership.pendingClaims.has(object.id);
+
+      // Handle different object types
+      if (object.type === "rectangle") {
+        return (
+          <Rectangle
+            key={object.id}
+            object={object}
+            isSelected={isSelected}
+            onSelect={handleObjectSelect}
+            onMove={updateObject}
+            ownershipStatus={ownershipStatus}
+            ownerInfo={ownerInfo}
+            isPendingClaim={isPendingClaim}
+            onClaimAttempt={ownership.claimObject}
+            onOwnershipExtend={ownership.extendOwnership}
+          />
+        );
+      } else if (object.type === "ellipse") {
+        return (
+          <Ellipse
+            key={object.id}
+            object={object}
+            isSelected={isSelected}
+            onSelect={handleObjectSelect}
+            onMove={updateObject}
+            ownershipStatus={ownershipStatus}
+            ownerInfo={ownerInfo}
+            isPendingClaim={isPendingClaim}
+            onClaimAttempt={ownership.claimObject}
+            onOwnershipExtend={ownership.extendOwnership}
+          />
+        );
+      } else if (object.type === "triangle") {
+        return (
+          <Triangle
+            key={object.id}
+            object={object}
+            isSelected={isSelected}
+            onSelect={handleObjectSelect}
+            onMove={updateObject}
+            ownershipStatus={ownershipStatus}
+            ownerInfo={ownerInfo}
+            isPendingClaim={isPendingClaim}
+            onClaimAttempt={ownership.claimObject}
+            onOwnershipExtend={ownership.extendOwnership}
+          />
+        );
+      } else if (object.type === "textbox") {
+        return (
+          <Textbox
+            key={object.id}
+            object={object}
+            isSelected={isSelected}
+            onSelect={handleObjectSelect}
+            onMove={updateObject}
+            ownershipStatus={ownershipStatus}
+            ownerInfo={ownerInfo}
+            isPendingClaim={isPendingClaim}
+            onClaimAttempt={ownership.claimObject}
+            onOwnershipExtend={ownership.extendOwnership}
+          />
+        );
+      } else {
+        console.warn(`⚠️ Unknown object type: ${object.type}`);
+        return null;
+      }
+    });
+  }, [
+    visibleObjects,
+    state.selectedObjects,
+    ownership,
+    handleObjectSelect,
+    updateObject,
+  ]);
 
   // Create state updater for AI - include operations in dependencies
   const stateUpdater = useMemo(
@@ -245,6 +453,15 @@ export default function Canvas({
           object.id
         );
         addObjectToState(object);
+      },
+      addObjectsBatch: (objects: any[]) => {
+        console.log(
+          "🎨 State updater adding batch to local state:",
+          objects.length,
+          "objects"
+        );
+        // Add all objects in single state update
+        addObjectsBatchToState(objects);
       },
       updateObject: async (id: string, updates: any) => {
         console.log("🔧 State updater updating object:", id, updates);
@@ -266,6 +483,26 @@ export default function Canvas({
           await ownership.handleNewObjectCreated(object, userId, displayName);
         }
       },
+      initializeOwnershipBatch: async (
+        objects: any[],
+        userId: string,
+        displayName?: string
+      ) => {
+        console.log(
+          "🏷️ State updater initializing batch ownership:",
+          objects.length,
+          "objects"
+        );
+        if (ownership.handleNewObjectCreated) {
+          // Process all in parallel but return single promise
+          // Use the provided displayName for all objects to avoid individual DB queries
+          await Promise.all(
+            objects.map((obj) =>
+              ownership.handleNewObjectCreated(obj, userId, displayName)
+            )
+          );
+        }
+      },
       claimObject: async (objectId: string) => {
         console.log("🏷️ State updater claiming object:", objectId);
         return await ownership.claimObject(objectId);
@@ -275,7 +512,14 @@ export default function Canvas({
         selectObjects(objectIds);
       },
     }),
-    [operations, addObjectToState, updateObject, ownership, selectObjects]
+    [
+      operations,
+      addObjectToState,
+      addObjectsBatchToState,
+      updateObject,
+      ownership,
+      selectObjects,
+    ]
   );
 
   // Memoize viewport info for AI
@@ -907,76 +1151,6 @@ export default function Canvas({
     ]
   );
 
-  // Handle object selection (with multi-select support)
-  const handleObjectSelect = useCallback(
-    (objectId: string, event?: any) => {
-      if (currentTool === "select") {
-        // Check if we can edit/select this object
-        const canSelectObject = ownership.canEdit(objectId);
-
-        if (!canSelectObject) {
-          console.log(
-            `🚫 Cannot select object ${objectId}: owned by someone else`
-          );
-          return;
-        }
-
-        const isShiftClick = event?.evt?.shiftKey || false;
-
-        // Release ownership of all other objects unless shift is held
-        if (!isShiftClick) {
-          console.log(
-            `🏷️ Releasing ownership of all objects except: ${objectId}`
-          );
-          ownership.releaseAllExcept(objectId);
-        }
-
-        if (isShiftClick) {
-          // Multi-select: add/remove from selection
-          const currentSelection = state.selectedObjects;
-          if (currentSelection.includes(objectId)) {
-            // Remove from selection
-            const newSelection = currentSelection.filter(
-              (id) => id !== objectId
-            );
-            selectObjects(newSelection);
-            console.log(`🎯 Removed from selection: ${objectId}`);
-          } else {
-            // Add to selection
-            const newSelection = [...currentSelection, objectId];
-            selectObjects(newSelection);
-            console.log(`🎯 Added to selection: ${objectId}`);
-          }
-        } else {
-          // Single select: replace selection
-          selectObjects([objectId]);
-          console.log(`🎯 Single selected: ${objectId}`);
-
-          // Check if selected object is a textbox and show editor
-          const selectedObject = state.objects.find(
-            (obj) => obj.id === objectId
-          );
-          if (selectedObject && selectedObject.type === "textbox") {
-            setSelectedTextbox(selectedObject);
-            setIsTextboxEditorCollapsed(false); // Show editor (not collapsed)
-            console.log(`📝 Opening textbox editor for: ${objectId}`);
-          } else {
-            // Keep editor but collapse it if selecting non-textbox
-            setIsTextboxEditorCollapsed(true);
-            setSelectedTextbox(null);
-          }
-        }
-      }
-    },
-    [
-      currentTool,
-      selectObjects,
-      state.selectedObjects,
-      state.objects,
-      ownership,
-    ]
-  );
-
   // Store refs for keyboard shortcuts to avoid stale closures without causing re-renders
   const keyboardShortcutsRef = useRef({
     deleteObjects,
@@ -1272,78 +1446,7 @@ export default function Canvas({
         />
 
         {/* Render existing objects */}
-        {state.objects.map((object) => {
-          const isSelected = state.selectedObjects.includes(object.id);
-          const ownershipStatus = ownership.getOwnershipStatus(object.id);
-          const ownerInfo = ownership.getOwnerInfo(object.id);
-          const isPendingClaim = ownership.pendingClaims.has(object.id);
-
-          // Handle different object types
-          if (object.type === "rectangle") {
-            return (
-              <Rectangle
-                key={object.id}
-                object={object}
-                isSelected={isSelected}
-                onSelect={handleObjectSelect}
-                onMove={updateObject}
-                ownershipStatus={ownershipStatus}
-                ownerInfo={ownerInfo}
-                isPendingClaim={isPendingClaim}
-                onClaimAttempt={ownership.claimObject}
-                onOwnershipExtend={ownership.extendOwnership}
-              />
-            );
-          } else if (object.type === "ellipse") {
-            return (
-              <Ellipse
-                key={object.id}
-                object={object}
-                isSelected={isSelected}
-                onSelect={handleObjectSelect}
-                onMove={updateObject}
-                ownershipStatus={ownershipStatus}
-                ownerInfo={ownerInfo}
-                isPendingClaim={isPendingClaim}
-                onClaimAttempt={ownership.claimObject}
-                onOwnershipExtend={ownership.extendOwnership}
-              />
-            );
-          } else if (object.type === "triangle") {
-            return (
-              <Triangle
-                key={object.id}
-                object={object}
-                isSelected={isSelected}
-                onSelect={handleObjectSelect}
-                onMove={updateObject}
-                ownershipStatus={ownershipStatus}
-                ownerInfo={ownerInfo}
-                isPendingClaim={isPendingClaim}
-                onClaimAttempt={ownership.claimObject}
-                onOwnershipExtend={ownership.extendOwnership}
-              />
-            );
-          } else if (object.type === "textbox") {
-            return (
-              <Textbox
-                key={object.id}
-                object={object}
-                isSelected={isSelected}
-                onSelect={handleObjectSelect}
-                onMove={updateObject}
-                ownershipStatus={ownershipStatus}
-                ownerInfo={ownerInfo}
-                isPendingClaim={isPendingClaim}
-                onClaimAttempt={ownership.claimObject}
-                onOwnershipExtend={ownership.extendOwnership}
-              />
-            );
-          } else {
-            console.warn(`⚠️ Unknown object type: ${object.type}`);
-            return null;
-          }
-        })}
+        {objectComponents}
 
         {/* Transformer for selected objects */}
         <KonvaTransformer

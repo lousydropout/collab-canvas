@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import { Text, Group, Rect } from "react-konva";
 import { CanvasObject } from "@/types/canvas";
 
@@ -16,7 +17,7 @@ interface TextboxProps {
   onOwnershipExtend?: (objectId: string) => void;
 }
 
-export default function Textbox({
+const Textbox = memo(function Textbox({
   object,
   isSelected = false,
   onSelect,
@@ -281,4 +282,6 @@ export default function Textbox({
       )}
     </Group>
   );
-}
+});
+
+export default Textbox;

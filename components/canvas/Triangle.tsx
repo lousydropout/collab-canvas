@@ -1,5 +1,6 @@
 "use client";
 
+import React, { memo } from "react";
 import { Group, RegularPolygon, Rect, Text } from "react-konva";
 import Konva from "konva";
 import { CanvasObject } from "@/types/canvas";
@@ -17,7 +18,7 @@ interface TriangleProps {
   onOwnershipExtend?: (objectId: string) => void;
 }
 
-export default function Triangle({
+const Triangle = memo(function Triangle({
   object,
   isSelected = false,
   onSelect,
@@ -321,4 +322,6 @@ export default function Triangle({
       )}
     </Group>
   );
-}
+});
+
+export default Triangle;

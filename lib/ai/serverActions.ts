@@ -174,6 +174,7 @@ export async function detectObjectIntent(
 }
 
 **POSITIONING GUIDANCE (within visible range):**
+- Always place objects within the visible viewport area
 - "left" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.1}
 - "right" = x: ${context.viewportTopLeft.x + context.viewportWidth * 0.9}
 - "top" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.1}
@@ -181,6 +182,8 @@ export async function detectObjectIntent(
 - "center" = x: ${
       context.viewportTopLeft.x + context.viewportWidth * 0.5
     }, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
+- For patterns: center the pattern in the visible viewport
+- For random patterns: place objects within visibleRange bounds
 
 **OBJECT TYPE GUIDANCE:**
 - "square" = rectangle with equal width and height

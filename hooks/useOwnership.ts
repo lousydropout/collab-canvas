@@ -538,6 +538,12 @@ export function useOwnership({
         // Use provided display name or fetch it
         let ownerName = creatorDisplayName || "Unknown User";
         if (!creatorDisplayName && !isMyObject) {
+          console.log(
+            "🏷️ Fetching profile for object",
+            object.id,
+            "owner",
+            object.owner
+          );
           try {
             const { data: profile } = await supabase
               .from("profiles")
@@ -552,6 +558,13 @@ export function useOwnership({
         } else if (isMyObject) {
           // For our own objects, use our profile name
           ownerName = profile?.display_name || "You";
+        } else {
+          console.log(
+            "🏷️ Using provided display name for object",
+            object.id,
+            ":",
+            creatorDisplayName
+          );
         }
 
         // Update ownership state

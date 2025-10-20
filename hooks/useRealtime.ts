@@ -17,6 +17,7 @@ const isDev = process.env.NODE_ENV === "development";
 interface UseRealtimeProps {
   canvasId: string;
   onObjectCreated?: (event: RealtimeEvents["object_created"]) => void;
+  onObjectsCreated?: (event: RealtimeEvents["objects_created"]) => void;
   onObjectUpdated?: (event: RealtimeEvents["object_updated"]) => void;
   onObjectDeleted?: (event: RealtimeEvents["object_deleted"]) => void;
   onObjectsDeleted?: (event: RealtimeEvents["objects_deleted"]) => void;
@@ -28,6 +29,7 @@ interface UseRealtimeProps {
 export function useRealtime({
   canvasId,
   onObjectCreated,
+  onObjectsCreated,
   onObjectUpdated,
   onObjectDeleted,
   onObjectsDeleted,
@@ -51,6 +53,7 @@ export function useRealtime({
 
   // Store callback functions in refs to prevent re-renders
   const onObjectCreatedRef = useRef(onObjectCreated);
+  const onObjectsCreatedRef = useRef(onObjectsCreated);
   const onObjectUpdatedRef = useRef(onObjectUpdated);
   const onObjectDeletedRef = useRef(onObjectDeleted);
   const onObjectsDeletedRef = useRef(onObjectsDeleted);
@@ -62,6 +65,10 @@ export function useRealtime({
   useEffect(() => {
     onObjectCreatedRef.current = onObjectCreated;
   }, [onObjectCreated]);
+
+  useEffect(() => {
+    onObjectsCreatedRef.current = onObjectsCreated;
+  }, [onObjectsCreated]);
 
   useEffect(() => {
     onObjectUpdatedRef.current = onObjectUpdated;
@@ -170,6 +177,73 @@ export function useRealtime({
         console.log("📡 broadcastObjectCreated sent successfully");
       } catch (error) {
         console.error("📡 broadcastObjectCreated failed:", error);
+      }
+    },
+    [user, profile?.display_name, validateSession]
+  );
+
+  // Broadcast multiple object creations
+  const broadcastObjectsCreated = useCallback(
+    async (objects: CanvasObject[], userId?: string, displayName?: string) => {
+      console.log(
+        "🚨 DEBUG: broadcastObjectsCreated called for:",
+        objects.length,
+        "objects"
+      );
+      console.log(
+        "🚨 DEBUG: Channel ref:",
+        !!channelRef.current,
+        "User:",
+        !!user,
+        "User ID:",
+        user?.id
+      );
+      console.log(
+        "🚨 DEBUG: Provided userId:",
+        userId,
+        "displayName:",
+        displayName
+      );
+
+      const effectiveUser = user || (userId ? { id: userId } : null);
+      const effectiveDisplayName =
+        displayName || profile?.display_name || user?.email || "Anonymous";
+
+      if (!channelRef.current || !effectiveUser) {
+        console.log(
+          "🚨 DEBUG: broadcastObjectsCreated skipped - missing channel/user"
+        );
+        return;
+      }
+
+      // Validate session before broadcasting
+      const isValidSession = await validateSession();
+      if (!isValidSession) {
+        console.warn("⚠️ Invalid session, skipping broadcast");
+        return;
+      }
+
+      if (isDev) {
+        console.log(
+          "📡 Broadcasting objects created:",
+          objects.length,
+          "by",
+          effectiveDisplayName
+        );
+      }
+      try {
+        await channelRef.current.send({
+          type: "broadcast",
+          event: "objects_created",
+          payload: {
+            objects,
+            user_id: effectiveUser.id,
+            creatorDisplayName: effectiveDisplayName,
+          },
+        });
+        console.log("📡 broadcastObjectsCreated sent successfully");
+      } catch (error) {
+        console.error("📡 broadcastObjectsCreated failed:", error);
       }
     },
     [user, profile?.display_name, validateSession]
@@ -693,6 +767,14 @@ export function useRealtime({
           );
         }
       })
+      .on("broadcast", { event: "objects_created" }, (payload) => {
+        console.log("📥 Broadcast objects_created received:", payload);
+        if (onObjectsCreatedRef.current) {
+          onObjectsCreatedRef.current(
+            payload.payload as RealtimeEvents["objects_created"]
+          );
+        }
+      })
       .on("broadcast", { event: "object_updated" }, (payload) => {
         console.log("📥 Broadcast object_updated received:", payload);
         if (onObjectUpdatedRef.current) {
@@ -917,6 +999,7 @@ export function useRealtime({
   return {
     ...state,
     broadcastObjectCreated,
+    broadcastObjectsCreated,
     broadcastObjectUpdated,
     broadcastObjectDeleted,
     broadcastObjectsDeleted,

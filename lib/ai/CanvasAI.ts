@@ -69,12 +69,18 @@ export interface AIResponse {
 
 export interface CanvasStateUpdater {
   addObject: (object: CanvasObject) => void;
+  addObjectsBatch: (objects: CanvasObject[]) => void;
   updateObject: (
     id: string,
     updates: Partial<CanvasObject>
   ) => Promise<CanvasObject | null>;
   initializeOwnership: (
     object: CanvasObject,
+    userId: string,
+    displayName?: string
+  ) => Promise<void>;
+  initializeOwnershipBatch: (
+    objects: CanvasObject[],
     userId: string,
     displayName?: string
   ) => Promise<void>;
@@ -141,12 +147,20 @@ export class CanvasAI {
    * Calculate the center of the visible viewport in canvas coordinates
    */
   private getViewportCenter(): { x: number; y: number } {
-    const centerX =
-      (this.canvasSize.width / 2 - this.viewportInfo.position.x) /
-      this.viewportInfo.scale;
-    const centerY =
-      (this.canvasSize.height / 2 - this.viewportInfo.position.y) /
-      this.viewportInfo.scale;
+    // Calculate viewport dimensions
+    const viewportWidth = this.canvasSize.width / this.viewportInfo.scale;
+    const viewportHeight = this.canvasSize.height / this.viewportInfo.scale;
+
+    // Calculate viewport top-left position in canvas coordinates
+    const viewportTopLeft = {
+      x: -this.viewportInfo.position.x / this.viewportInfo.scale,
+      y: -this.viewportInfo.position.y / this.viewportInfo.scale,
+    };
+
+    // Calculate center of visible viewport
+    const centerX = viewportTopLeft.x + viewportWidth * 0.5;
+    const centerY = viewportTopLeft.y + viewportHeight * 0.5;
+
     return { x: centerX, y: centerY };
   }
 
@@ -661,8 +675,6 @@ export class CanvasAI {
     try {
       // Simple grid pattern implementation
       if (pattern.type === "grid" && pattern.rows && pattern.columns) {
-        const startPos = pattern.startPosition || { x: 100, y: 100 };
-
         // Calculate object dimensions first
         const width = pattern.width || Math.round(this.canvasSize.width * 0.05);
         const height =
@@ -684,7 +696,30 @@ export class CanvasAI {
             : minSpacingY,
         };
 
+        // Use viewport-aware positioning instead of hardcoded values
+        const viewportCenter = this.getViewportCenter();
+        const startPos = pattern.startPosition || {
+          x: viewportCenter.x - pattern.columns * spacing.x * 0.5,
+          y: viewportCenter.y - pattern.rows * spacing.y * 0.5,
+        };
+
         const createdObjectIds: string[] = []; // Collect all created IDs
+
+        // Prepare all objects for batch creation
+        const objectsToCreate: Array<{
+          type: "rectangle" | "ellipse" | "triangle" | "textbox";
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          color: string;
+          rotation?: number;
+          text_content?: string;
+          font_size?: number;
+          font_family?: string;
+          font_weight?: string;
+          text_align?: string;
+        }> = [];
 
         for (let row = 0; row < pattern.rows; row++) {
           for (let col = 0; col < pattern.columns; col++) {
@@ -697,69 +732,110 @@ export class CanvasAI {
                 ? pattern.color
                 : getRandomColor();
 
-            let result;
-            if (normalizedObjectType === "rectangle") {
-              result = await this.operations.createRectangle({
-                type: "rectangle",
-                x,
-                y,
-                width,
-                height,
-                color: objectColor,
-                rotation: 0,
-              });
-            } else if (normalizedObjectType === "ellipse") {
-              result = await this.operations.createEllipse({
-                x,
-                y,
-                width,
-                height,
-                color: objectColor,
-                rotation: 0,
-              });
-            } else if (normalizedObjectType === "triangle") {
-              result = await this.operations.createTriangle({
-                x,
-                y,
-                width,
-                height,
-                color: objectColor,
-                rotation: 0,
-              });
-            } else if (normalizedObjectType === "textbox") {
-              result = await this.operations.createTextbox({
-                x,
-                y,
-                width,
-                height,
-                color: objectColor,
-                rotation: 0,
+            const objectData = {
+              type: normalizedObjectType as
+                | "rectangle"
+                | "ellipse"
+                | "triangle"
+                | "textbox",
+              x,
+              y,
+              width,
+              height,
+              color: objectColor,
+              rotation: 0,
+              // Textbox-specific fields
+              ...(normalizedObjectType === "textbox" && {
                 text_content: pattern.text_content || "Text",
                 font_size: pattern.font_size || 16,
                 font_family: pattern.font_family || "Arial",
                 font_weight: pattern.font_weight || "normal",
                 text_align: pattern.text_align || "left",
-              });
-            }
+              }),
+            };
 
-            if (result && this.stateUpdater) {
-              await this.stateUpdater.initializeOwnership(
-                result,
-                this.operations["user"].id,
-                this.operations["user"].email
-              );
-              this.stateUpdater.addObject(result);
-              createdObjectIds.push(result.id); // Collect ID
-            }
-
-            results.push(result);
+            objectsToCreate.push(objectData);
           }
         }
 
-        // Select all created objects at once
-        if (createdObjectIds.length > 0 && this.stateUpdater) {
-          this.stateUpdater.selectObjects(createdObjectIds);
+        // Chunking strategy for very large batches
+        const CHUNK_SIZE = 50; // Process 50 objects at a time
+        const allCreatedObjects: CanvasObject[] = [];
+
+        if (objectsToCreate.length > CHUNK_SIZE) {
+          console.log(
+            `🔄 Processing ${objectsToCreate.length} objects in chunks of ${CHUNK_SIZE}`
+          );
+
+          for (let i = 0; i < objectsToCreate.length; i += CHUNK_SIZE) {
+            const chunk = objectsToCreate.slice(i, i + CHUNK_SIZE);
+            console.log(
+              `🔄 Processing chunk ${
+                Math.floor(i / CHUNK_SIZE) + 1
+              }/${Math.ceil(objectsToCreate.length / CHUNK_SIZE)}: ${
+                chunk.length
+              } objects`
+            );
+
+            const chunkResults = await this.operations.createObjectsBatch(
+              chunk
+            );
+            allCreatedObjects.push(...chunkResults);
+            console.log(
+              `✅ Completed chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${
+                chunkResults.length
+              } objects created`
+            );
+
+            // Small delay between chunks to prevent blocking
+            if (i + CHUNK_SIZE < objectsToCreate.length) {
+              console.log("⏳ Waiting 10ms before next chunk...");
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+          }
+        } else {
+          const results = await this.operations.createObjectsBatch(
+            objectsToCreate
+          );
+          allCreatedObjects.push(...results);
         }
+
+        const createdObjects = allCreatedObjects;
+
+        // Initialize ownership for all objects in parallel
+        if (createdObjects.length > 0 && this.stateUpdater) {
+          console.log(
+            "🏷️ Starting batch ownership initialization for",
+            createdObjects.length,
+            "objects"
+          );
+          await this.stateUpdater!.initializeOwnershipBatch(
+            createdObjects,
+            this.operations["user"].id,
+            this.operations["user"].email
+          );
+          console.log("🏷️ Completed batch ownership initialization");
+
+          // Add all objects to local state
+          console.log(
+            "🎨 Starting batch state update for",
+            createdObjects.length,
+            "objects"
+          );
+          this.stateUpdater!.addObjectsBatch(createdObjects);
+          console.log("🎨 Completed batch state update");
+
+          // Select all objects
+          const createdObjectIds = createdObjects.map((obj) => obj.id);
+          this.stateUpdater!.selectObjects(createdObjectIds);
+          console.log("🎯 Completed object selection");
+        }
+
+        return {
+          message: `Successfully created ${createdObjects.length} objects in ${pattern.type} pattern`,
+          success: createdObjects.length > 0,
+          commandData,
+        };
       } else {
         // For other pattern types, create a simple implementation
         const count = pattern.count || 10;
@@ -768,9 +844,36 @@ export class CanvasAI {
           pattern.height || Math.round(this.canvasSize.height * 0.05);
         // Use pattern color if provided, otherwise each object will get a random color
 
+        // Use viewport-aware positioning for random patterns
+        const viewportCenter = this.getViewportCenter();
+        const viewportWidth = this.canvasSize.width / this.viewportInfo.scale;
+        const viewportHeight = this.canvasSize.height / this.viewportInfo.scale;
+        const viewportTopLeft = {
+          x: -this.viewportInfo.position.x / this.viewportInfo.scale,
+          y: -this.viewportInfo.position.y / this.viewportInfo.scale,
+        };
+
+        // Prepare all objects for batch creation
+        const objectsToCreate: Array<{
+          type: "rectangle" | "ellipse" | "triangle" | "textbox";
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          color: string;
+          rotation?: number;
+          text_content?: string;
+          font_size?: number;
+          font_family?: string;
+          font_weight?: string;
+          text_align?: string;
+        }> = [];
+
         for (let i = 0; i < count; i++) {
-          const x = Math.random() * (this.canvasSize.width - width);
-          const y = Math.random() * (this.canvasSize.height - height);
+          // Place objects within visible viewport area
+          const x = viewportTopLeft.x + Math.random() * (viewportWidth - width);
+          const y =
+            viewportTopLeft.y + Math.random() * (viewportHeight - height);
 
           // Generate a new random color for each object when pattern color is invalid
           const objectColor =
@@ -778,62 +881,105 @@ export class CanvasAI {
               ? pattern.color
               : getRandomColor();
 
-          let result;
-          if (objectType === "rectangle") {
-            result = await this.operations.createRectangle({
-              type: "rectangle",
-              x,
-              y,
-              width,
-              height,
-              color: objectColor,
-              rotation: 0,
-            });
-          } else if (objectType === "ellipse") {
-            result = await this.operations.createEllipse({
-              x,
-              y,
-              width,
-              height,
-              color: objectColor,
-              rotation: 0,
-            });
-          } else if (objectType === "triangle") {
-            result = await this.operations.createTriangle({
-              x,
-              y,
-              width,
-              height,
-              color: objectColor,
-              rotation: 0,
-            });
-          } else if (objectType === "textbox") {
-            result = await this.operations.createTextbox({
-              x,
-              y,
-              width,
-              height,
-              color: objectColor,
-              rotation: 0,
+          const objectData = {
+            type: objectType as
+              | "rectangle"
+              | "ellipse"
+              | "triangle"
+              | "textbox",
+            x,
+            y,
+            width,
+            height,
+            color: objectColor,
+            rotation: 0,
+            // Textbox-specific fields
+            ...(objectType === "textbox" && {
               text_content: pattern.text_content || "Text",
               font_size: pattern.font_size || 16,
               font_family: pattern.font_family || "Arial",
               font_weight: pattern.font_weight || "normal",
               text_align: pattern.text_align || "left",
-            });
-          }
+            }),
+          };
 
-          if (result && this.stateUpdater) {
-            await this.stateUpdater.initializeOwnership(
-              result,
-              this.operations["user"].id,
-              this.operations["user"].email
-            );
-            this.stateUpdater.addObject(result);
-          }
-
-          results.push(result);
+          objectsToCreate.push(objectData);
         }
+
+        // Chunking strategy for very large batches
+        const CHUNK_SIZE = 50; // Process 50 objects at a time
+        const allCreatedObjects: CanvasObject[] = [];
+
+        if (objectsToCreate.length > CHUNK_SIZE) {
+          console.log(
+            `🔄 Processing ${objectsToCreate.length} objects in chunks of ${CHUNK_SIZE}`
+          );
+
+          for (let i = 0; i < objectsToCreate.length; i += CHUNK_SIZE) {
+            const chunk = objectsToCreate.slice(i, i + CHUNK_SIZE);
+            console.log(
+              `🔄 Processing chunk ${
+                Math.floor(i / CHUNK_SIZE) + 1
+              }/${Math.ceil(objectsToCreate.length / CHUNK_SIZE)}: ${
+                chunk.length
+              } objects`
+            );
+
+            const chunkResults = await this.operations.createObjectsBatch(
+              chunk
+            );
+            allCreatedObjects.push(...chunkResults);
+            console.log(
+              `✅ Completed chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${
+                chunkResults.length
+              } objects created`
+            );
+
+            // Small delay between chunks to prevent blocking
+            if (i + CHUNK_SIZE < objectsToCreate.length) {
+              console.log("⏳ Waiting 10ms before next chunk...");
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+          }
+        } else {
+          const results = await this.operations.createObjectsBatch(
+            objectsToCreate
+          );
+          allCreatedObjects.push(...results);
+        }
+
+        const createdObjects = allCreatedObjects;
+
+        // Initialize ownership for all objects in parallel
+        if (createdObjects.length > 0 && this.stateUpdater) {
+          console.log(
+            "🏷️ Starting batch ownership initialization for",
+            createdObjects.length,
+            "objects"
+          );
+          await this.stateUpdater!.initializeOwnershipBatch(
+            createdObjects,
+            this.operations["user"].id,
+            this.operations["user"].email
+          );
+          console.log("🏷️ Completed batch ownership initialization");
+
+          // Add all objects to local state
+          console.log(
+            "🎨 Starting batch state update for",
+            createdObjects.length,
+            "objects"
+          );
+          this.stateUpdater!.addObjectsBatch(createdObjects);
+          console.log("🎨 Completed batch state update");
+
+          // Select all objects
+          const createdObjectIds = createdObjects.map((obj) => obj.id);
+          this.stateUpdater!.selectObjects(createdObjectIds);
+          console.log("🎯 Completed object selection");
+        }
+
+        results.push(...createdObjects);
       }
 
       const successCount = results.filter((r) => r !== null).length;

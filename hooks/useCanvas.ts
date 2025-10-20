@@ -196,6 +196,53 @@ export function useCanvas(
     [user]
   );
 
+  const handleRealtimeObjectsCreated = useCallback(
+    (event: {
+      objects: CanvasObject[];
+      user_id: string;
+      creatorDisplayName?: string;
+    }) => {
+      const { objects, user_id, creatorDisplayName } = event;
+
+      // Skip if this was our own operation
+      if (user && user_id === user.id) {
+        console.log(
+          "🔄 Skipping own objects creation:",
+          objects.length,
+          "objects"
+        );
+        return;
+      }
+
+      // Skip if we initiated this operation locally
+      const localObjectIds = objects.map((obj) => obj.id);
+      const hasLocalOperations = localObjectIds.some((id) =>
+        localOperationsRef.current.has(id)
+      );
+      if (hasLocalOperations) {
+        console.log("🔄 Skipping local operations:", localObjectIds);
+        localObjectIds.forEach((id) => localOperationsRef.current.delete(id));
+        return;
+      }
+
+      console.log(
+        "📥 Queuing objects created:",
+        objects.length,
+        "by user:",
+        user_id
+      );
+      updateQueue.current.created.push(...objects);
+
+      // Notify ownership system about the new objects
+      if (onNewObjectCreatedRef.current) {
+        objects.forEach((object) => {
+          onNewObjectCreatedRef.current!(object, user_id, creatorDisplayName);
+        });
+      }
+    },
+    [user]
+  );
+
   const handleRealtimeObjectUpdated = useCallback(
     (event: {
       object: CanvasObject;
@@ -334,6 +381,7 @@ export function useCanvas(
   const realtime = useRealtime({
     canvasId,
     onObjectCreated: handleRealtimeObjectCreated,
+    onObjectsCreated: handleRealtimeObjectsCreated,
     onObjectUpdated: handleRealtimeObjectUpdated,
     onObjectDeleted: handleRealtimeObjectDeleted,
     onObjectsDeleted: handleRealtimeObjectsDeleted,
@@ -804,6 +852,20 @@ export function useCanvas(
     }));
   }, []);
 
+  // Add multiple objects to local state (for AI batch-created objects)
+  const addObjectsBatchToState = useCallback((objects: CanvasObject[]) => {
+    console.log("🎨 Adding batch to local state:", objects.length, "objects");
+
+    // Track all as local operations
+    objects.forEach((obj) => localOperationsRef.current.add(obj.id));
+
+    // Add all objects to local state in single update
+    setState((prev) => ({
+      ...prev,
+      objects: [...prev.objects, ...objects],
+    }));
+  }, []);
+
   // Load objects on mount
   useEffect(() => {
     loadObjects();
@@ -823,6 +885,7 @@ export function useCanvas(
     setColor,
     loadObjects,
     addObjectToState,
+    addObjectsBatchToState,
     // Z-index operations using CanvasOperations service
     bringToFront,
     // CanvasOperations service instance

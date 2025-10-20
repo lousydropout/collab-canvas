@@ -16,6 +16,11 @@ export interface RealtimeEvents {
   };
 
   // Batch operations
+  objects_created: {
+    objects: CanvasObject[];
+    user_id: string;
+    creatorDisplayName?: string;
+  };
   objects_deleted: {
     object_ids: string[];
     user_id: string;
