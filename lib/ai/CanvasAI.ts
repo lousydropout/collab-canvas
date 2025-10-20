@@ -10,14 +10,14 @@
  * - Error handling and user feedback
  */
 
-import { CanvasOperations } from "@/lib/canvas/CanvasOperations";
-import { CanvasSize } from "@/lib/canvas/coordinateUtils";
-import { CanvasObject } from "@/types/canvas";
 import {
+  type AICommand,
+  type AIContext,
   detectObjectIntent,
-  AICommand,
-  AIContext,
 } from "@/lib/ai/serverActions";
+import type { CanvasOperations } from "@/lib/canvas/CanvasOperations";
+import type { CanvasSize } from "@/lib/canvas/coordinateUtils";
+import type { CanvasObject } from "@/types/canvas";
 
 // Default values for object creation
 const DEFAULT_SIZE = { width: 200, height: 150 };
@@ -1271,7 +1271,7 @@ export class CanvasAI {
             : "Failed to arrange objects in a column";
           break;
 
-        case "space":
+        case "space": {
           // Use distribute with the specified direction or default to horizontal
           const direction = commandData.layoutDirection || "horizontal";
           success = await this.handleAlignmentWithStateUpdater(
@@ -1283,6 +1283,7 @@ export class CanvasAI {
             ? `Successfully spaced ${selectedObjects.length} object(s) evenly`
             : "Failed to space objects evenly";
           break;
+        }
 
         case "align":
           if (!commandData.alignType) {
@@ -1504,45 +1505,3 @@ export class CanvasAI {
     console.log("📐 CanvasAI updated canvas size:", newSize);
   }
 }
-
-/**
- * Factory function to create CanvasAI instance
- *
- * @param operations - CanvasOperations service instance
- * @param canvasSize - Current canvas dimensions
- * @param stateUpdater - Optional state updater for local state management
- * @param currentColor - Optional current color for object creation
- * @param viewportInfo - Optional viewport information for positioning
- * @returns CanvasAI instance
- */
-export function createCanvasAI(
-  operations: CanvasOperations,
-  canvasSize: CanvasSize,
-  stateUpdater?: CanvasStateUpdater,
-  currentColor?: string,
-  viewportInfo?: { scale: number; position: { x: number; y: number } }
-): CanvasAI {
-  return new CanvasAI(
-    operations,
-    canvasSize,
-    stateUpdater,
-    currentColor,
-    viewportInfo
-  );
-}
-
-/**
- * Example usage:
- *
- * ```typescript
- * const ai = createCanvasAI(operations, { width: 800, height: 600 })
- *
- * const response = await ai.processMessage("Create a rectangle")
- * if (response.success) {
- *   console.log('AI response:', response.message)
- *   console.log('Object type:', response.objectType)
- * } else {
- *   console.error('AI error:', response.error)
- * }
- * ```
- */

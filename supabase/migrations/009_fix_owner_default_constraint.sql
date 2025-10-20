@@ -20,3 +20,4 @@ WHERE owner = 'all' AND created_by IS NULL;
 
 
 
+

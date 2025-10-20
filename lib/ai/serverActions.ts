@@ -18,96 +18,96 @@ import { generateText } from "ai";
 
 // Ensure API key is properly formatted
 if (process.env.OPENAI_API_KEY) {
-  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY.trim();
+	process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY.trim();
 }
 
 export interface AICommand {
-  command: "create" | "modify" | "layout" | null;
-  objectType?:
-    | "rectangle"
-    | "ellipse"
-    | "triangle"
-    | "square"
-    | "circle"
-    | "textbox"
-    | null;
-  x?: number | null;
-  y?: number | null;
-  width?: number | null;
-  height?: number | null;
-  color?: string | null;
-  // Textbox-specific fields
-  text_content?: string | null;
-  font_size?: number | null;
-  font_family?: string | null;
-  font_weight?: string | null;
-  text_align?: string | null;
-  // Modify command attributes
-  deltaX?: number | null;
-  deltaY?: number | null;
-  newX?: number | null;
-  newY?: number | null;
-  scaleBy?: number | null;
-  newWidth?: number | null;
-  newHeight?: number | null;
-  // Layout command attributes
-  layoutType?: "row" | "column" | "grid" | "space" | "align" | null;
-  layoutDirection?: "horizontal" | "vertical" | null;
-  gridRows?: number | null;
-  gridColumns?: number | null;
-  spacing?: number | null;
-  alignType?: "left" | "right" | "center" | "top" | "bottom" | "middle" | null;
-  // Batch support
-  args?: Array<{
-    objectType:
-      | "rectangle"
-      | "ellipse"
-      | "triangle"
-      | "square"
-      | "circle"
-      | "textbox";
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-    color?: string;
-    text_content?: string;
-    font_size?: number;
-    font_family?: string;
-    font_weight?: string;
-    text_align?: string;
-  }>;
-  // Pattern support
-  pattern?: {
-    type: "grid" | "line" | "circle" | "random";
-    count?: number;
-    rows?: number;
-    columns?: number;
-    spacing?: { x: number; y: number };
-    startPosition?: { x: number; y: number };
-    width?: number;
-    height?: number;
-    color?: string;
-    text_content?: string;
-    font_size?: number;
-    font_family?: string;
-    font_weight?: string;
-    text_align?: string;
-  };
+	command: "create" | "modify" | "layout" | null;
+	objectType?:
+		| "rectangle"
+		| "ellipse"
+		| "triangle"
+		| "square"
+		| "circle"
+		| "textbox"
+		| null;
+	x?: number | null;
+	y?: number | null;
+	width?: number | null;
+	height?: number | null;
+	color?: string | null;
+	// Textbox-specific fields
+	text_content?: string | null;
+	font_size?: number | null;
+	font_family?: string | null;
+	font_weight?: string | null;
+	text_align?: string | null;
+	// Modify command attributes
+	deltaX?: number | null;
+	deltaY?: number | null;
+	newX?: number | null;
+	newY?: number | null;
+	scaleBy?: number | null;
+	newWidth?: number | null;
+	newHeight?: number | null;
+	// Layout command attributes
+	layoutType?: "row" | "column" | "grid" | "space" | "align" | null;
+	layoutDirection?: "horizontal" | "vertical" | null;
+	gridRows?: number | null;
+	gridColumns?: number | null;
+	spacing?: number | null;
+	alignType?: "left" | "right" | "center" | "top" | "bottom" | "middle" | null;
+	// Batch support
+	args?: Array<{
+		objectType:
+			| "rectangle"
+			| "ellipse"
+			| "triangle"
+			| "square"
+			| "circle"
+			| "textbox";
+		x?: number;
+		y?: number;
+		width?: number;
+		height?: number;
+		color?: string;
+		text_content?: string;
+		font_size?: number;
+		font_family?: string;
+		font_weight?: string;
+		text_align?: string;
+	}>;
+	// Pattern support
+	pattern?: {
+		type: "grid" | "line" | "circle" | "random";
+		count?: number;
+		rows?: number;
+		columns?: number;
+		spacing?: { x: number; y: number };
+		startPosition?: { x: number; y: number };
+		width?: number;
+		height?: number;
+		color?: string;
+		text_content?: string;
+		font_size?: number;
+		font_family?: string;
+		font_weight?: string;
+		text_align?: string;
+	};
 }
 
 export interface IntentDetectionResult {
-  commandData: AICommand | null;
-  message: string;
-  success: boolean;
-  error?: string;
+	commandData: AICommand | null;
+	message: string;
+	success: boolean;
+	error?: string;
 }
 
 export interface AIContext {
-  selectedObjectsCount: number;
-  viewportWidth: number;
-  viewportHeight: number;
-  viewportTopLeft: { x: number; y: number };
+	selectedObjectsCount: number;
+	viewportWidth: number;
+	viewportHeight: number;
+	viewportTopLeft: { x: number; y: number };
 }
 
 /**
@@ -118,14 +118,14 @@ export interface AIContext {
  * @returns Promise<IntentDetectionResult> - Detection result with object type
  */
 export async function detectObjectIntent(
-  message: string,
-  context: AIContext
+	message: string,
+	context: AIContext,
 ): Promise<IntentDetectionResult> {
-  try {
-    console.log("🤖 Server Action - Processing message:", message);
+	try {
+		console.log("🤖 Server Action - Processing message:", message);
 
-    // JSON prompt asking AI to respond with structured command data
-    const prompt = `You are an assistant that converts natural language drawing commands into structured JSON for a Figma-like canvas.
+		// JSON prompt asking AI to respond with structured command data
+		const prompt = `You are an assistant that converts natural language drawing commands into structured JSON for a Figma-like canvas.
 
 **Instructions:**
 - Respond with ONLY valid JSON; no markdown, commentary, or code blocks.
@@ -146,11 +146,11 @@ export async function detectObjectIntent(
     "width": ${context.viewportWidth},
     "height": ${context.viewportHeight},
     "topLeft": { "x": ${context.viewportTopLeft.x}, "y": ${
-      context.viewportTopLeft.y
-    } },
+			context.viewportTopLeft.y
+		} },
     "center": { "x": ${
-      context.viewportTopLeft.x + context.viewportWidth * 0.5
-    }, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5} },
+			context.viewportTopLeft.x + context.viewportWidth * 0.5
+		}, "y": ${context.viewportTopLeft.y + context.viewportHeight * 0.5} },
     "visibleRange": {
       "xMin": ${context.viewportTopLeft.x + context.viewportWidth * 0.1},
       "xMax": ${context.viewportTopLeft.x + context.viewportWidth * 0.9},
@@ -161,14 +161,14 @@ export async function detectObjectIntent(
   "defaults": {
     "sizes": {
       "small": { "width": ${Math.round(
-        context.viewportWidth * 0.05
-      )}, "height": ${Math.round(context.viewportHeight * 0.05)} },
+				context.viewportWidth * 0.05,
+			)}, "height": ${Math.round(context.viewportHeight * 0.05)} },
       "medium": { "width": ${Math.round(
-        context.viewportWidth * 0.1
-      )}, "height": ${Math.round(context.viewportHeight * 0.1)} },
+				context.viewportWidth * 0.1,
+			)}, "height": ${Math.round(context.viewportHeight * 0.1)} },
       "large": { "width": ${Math.round(
-        context.viewportWidth * 0.25
-      )}, "height": ${Math.round(context.viewportHeight * 0.2)} }
+				context.viewportWidth * 0.25,
+			)}, "height": ${Math.round(context.viewportHeight * 0.2)} }
     }
   }
 }
@@ -180,8 +180,8 @@ export async function detectObjectIntent(
 - "top" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.1}
 - "bottom" = y: ${context.viewportTopLeft.y + context.viewportHeight * 0.9}
 - "center" = x: ${
-      context.viewportTopLeft.x + context.viewportWidth * 0.5
-    }, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
+			context.viewportTopLeft.x + context.viewportWidth * 0.5
+		}, y: ${context.viewportTopLeft.y + context.viewportHeight * 0.5}
 - For patterns: center the pattern in the visible viewport
 - For random patterns: place objects within visibleRange bounds
 
@@ -330,80 +330,80 @@ LAYOUT OBJECTS:
 
 **User command:** "${message}"`;
 
-    console.log("📝 Server Action - Prompt:", prompt);
+		console.log("📝 Server Action - Prompt:", prompt);
 
-    // Generate simple text response (no tools needed)
-    console.log("🚀 Server Action - Starting generateText with OpenAI...");
-    const result = await generateText({
-      model: openai("gpt-4o-mini"),
-      prompt: prompt,
-      temperature: 0.1,
-    });
+		// Generate simple text response (no tools needed)
+		console.log("🚀 Server Action - Starting generateText with OpenAI...");
+		const result = await generateText({
+			model: openai("gpt-4o-mini"),
+			prompt: prompt,
+			temperature: 0.1,
+		});
 
-    console.log(
-      "🔍 Server Action - Full LLM response:",
-      JSON.stringify(result, null, 2)
-    );
-    console.log("🔍 Server Action - Text response:", result.text);
+		console.log(
+			"🔍 Server Action - Full LLM response:",
+			JSON.stringify(result, null, 2),
+		);
+		console.log("🔍 Server Action - Text response:", result.text);
 
-    // Parse the JSON response
-    const responseText = result.text.trim();
-    console.log("🔍 Server Action - Response text:", responseText);
+		// Parse the JSON response
+		const responseText = result.text.trim();
+		console.log("🔍 Server Action - Response text:", responseText);
 
-    try {
-      // Remove markdown code blocks if present
-      let jsonText = responseText;
-      if (jsonText.startsWith("```json")) {
-        jsonText = jsonText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-      } else if (jsonText.startsWith("```")) {
-        jsonText = jsonText.replace(/^```\s*/, "").replace(/\s*```$/, "");
-      }
+		try {
+			// Remove markdown code blocks if present
+			let jsonText = responseText;
+			if (jsonText.startsWith("```json")) {
+				jsonText = jsonText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+			} else if (jsonText.startsWith("```")) {
+				jsonText = jsonText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+			}
 
-      const commandData = JSON.parse(jsonText) as AICommand;
-      console.log("🔍 Server Action - Parsed command data:", commandData);
+			const commandData = JSON.parse(jsonText) as AICommand;
+			console.log("🔍 Server Action - Parsed command data:", commandData);
 
-      return {
-        commandData,
-        message: result.text,
-        success: true,
-      };
-    } catch (error) {
-      console.log("🔍 Server Action - Failed to parse JSON response:", error);
-      return {
-        commandData: null,
-        message: "Could not understand command",
-        success: false,
-        error: "Invalid JSON response",
-      };
-    }
-  } catch (error) {
-    console.error("❌ Server Action - Error occurred:", error);
-    console.error(
-      "❌ Server Action - Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
-    );
+			return {
+				commandData,
+				message: result.text,
+				success: true,
+			};
+		} catch (error) {
+			console.log("🔍 Server Action - Failed to parse JSON response:", error);
+			return {
+				commandData: null,
+				message: "Could not understand command",
+				success: false,
+				error: "Invalid JSON response",
+			};
+		}
+	} catch (error) {
+		console.error("❌ Server Action - Error occurred:", error);
+		console.error(
+			"❌ Server Action - Error stack:",
+			error instanceof Error ? error.stack : "No stack trace",
+		);
 
-    let errorMessage = "Sorry, I encountered an error processing your request.";
+		let errorMessage = "Sorry, I encountered an error processing your request.";
 
-    if (error instanceof Error) {
-      if (error.message.includes("API key")) {
-        errorMessage =
-          "OpenAI API key not configured. Please check your environment variables.";
-      } else if (error.message.includes("rate limit")) {
-        errorMessage = "Rate limit exceeded. Please try again in a moment.";
-      } else if (error.message.includes("quota")) {
-        errorMessage =
-          "OpenAI quota exceeded. Please check your account limits.";
-      } else {
-        errorMessage = `Error: ${error.message}`;
-      }
-    }
+		if (error instanceof Error) {
+			if (error.message.includes("API key")) {
+				errorMessage =
+					"OpenAI API key not configured. Please check your environment variables.";
+			} else if (error.message.includes("rate limit")) {
+				errorMessage = "Rate limit exceeded. Please try again in a moment.";
+			} else if (error.message.includes("quota")) {
+				errorMessage =
+					"OpenAI quota exceeded. Please check your account limits.";
+			} else {
+				errorMessage = `Error: ${error.message}`;
+			}
+		}
 
-    return {
-      commandData: null,
-      message: errorMessage,
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
+		return {
+			commandData: null,
+			message: errorMessage,
+			success: false,
+			error: error instanceof Error ? error.message : "Unknown error",
+		};
+	}
 }
