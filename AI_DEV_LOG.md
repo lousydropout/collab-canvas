@@ -11,8 +11,6 @@ CollabCanvas is a real-time collaborative canvas application built with Next.js,
 ### Primary AI Tools
 
 - **Cursor AI**: Main development assistant for code generation, debugging, and architectural decisions
-- **Claude (via Cursor)**: Used for initial PRD generation and complex problem-solving
-- **Vercel AI SDK**: Integrated OpenAI GPT-4o-mini for natural language canvas operations
 
 ### Workflow Integration
 

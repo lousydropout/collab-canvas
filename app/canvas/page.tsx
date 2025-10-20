@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/layout/Header";
 import Toolbar from "@/components/layout/Toolbar";
 import { CanvasState } from "@/types/canvas";
@@ -56,6 +56,8 @@ export default function CanvasPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
           <p className="mt-2 text-sm text-muted-foreground">Loading...</p>
+          <p className="mt-1 text-xs text-gray-500">Checking authentication status</p>
+          <p className="mt-1 text-xs text-gray-400">If this takes more than 10 seconds, check the browser console for errors</p>
         </div>
       </div>
     );

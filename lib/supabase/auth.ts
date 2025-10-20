@@ -71,8 +71,62 @@ export class AuthService {
 
   // Get current user
   static async getCurrentUser(): Promise<User | null> {
-    const { data } = await supabase.auth.getUser();
-    return data.user;
+    try {
+      console.log("🔍 AuthService.getCurrentUser: Starting...");
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("getCurrentUser timeout after 5 seconds")),
+          5000
+        )
+      );
+
+      const authPromise = (async () => {
+        // First check if we have a session
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.getSession();
+        console.log(
+          "🔍 AuthService.getCurrentUser: Session check:",
+          sessionData.session ? "Has session" : "No session",
+          sessionError ? `Error: ${sessionError.message}` : ""
+        );
+
+        if (sessionError) {
+          console.error(
+            "❌ AuthService.getCurrentUser: Session error:",
+            sessionError
+          );
+          return null;
+        }
+
+        if (!sessionData.session) {
+          console.log(
+            "✅ AuthService.getCurrentUser: No session, returning null"
+          );
+          return null;
+        }
+
+        // If we have a session, get the user
+        const { data, error } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error("❌ AuthService.getCurrentUser: Error:", error);
+          return null;
+        }
+
+        console.log(
+          "✅ AuthService.getCurrentUser: Success:",
+          data.user ? "User found" : "No user"
+        );
+        return data.user;
+      })();
+
+      return await Promise.race([authPromise, timeoutPromise]);
+    } catch (error) {
+      console.error("❌ AuthService.getCurrentUser: Exception:", error);
+      return null;
+    }
   }
 
   // Get current session
@@ -84,20 +138,53 @@ export class AuthService {
   // Get user profile
   static async getProfile(userId: string): Promise<Profile | null> {
     try {
-      const { data, error } = await supabase
+      console.log("🔍 AuthService.getProfile: Starting for user:", userId);
+
+      // Check if we have a valid session first
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log(
+        "🔍 AuthService.getProfile: Session check:",
+        sessionData.session ? "Valid session" : "No session"
+      );
+
+      if (!sessionData.session) {
+        console.log(
+          "❌ AuthService.getProfile: No valid session, cannot fetch profile"
+        );
+        return null;
+      }
+
+      // Add timeout to profile fetch
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Profile fetch timeout after 5 seconds")),
+          5000
+        )
+      );
+
+      const profilePromise = supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .single();
 
+      const { data, error } = await Promise.race([
+        profilePromise,
+        timeoutPromise,
+      ]);
+
       if (error) {
-        console.error("Error fetching profile:", error);
+        console.error("❌ AuthService.getProfile: Error:", error);
         return null;
       }
 
+      console.log(
+        "✅ AuthService.getProfile: Success:",
+        data ? "Profile found" : "No profile"
+      );
       return data;
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("❌ AuthService.getProfile: Exception:", error);
       return null;
     }
   }

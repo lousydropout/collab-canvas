@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { RegisterForm } from '@/components/auth/RegisterForm'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function RegisterPage() {
   const { user, loading } = useAuth()

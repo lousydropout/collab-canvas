@@ -9,7 +9,7 @@ import {
   RealtimeState,
   CanvasObject,
 } from "@/types/realtime";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { AuthService } from "@/lib/supabase/auth";
 
 const isDev = process.env.NODE_ENV === "development";

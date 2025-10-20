@@ -10,7 +10,7 @@ import {
   TextboxData,
 } from "@/types/canvas";
 import { supabase } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/hooks/useRealtime";
 import {
   loadColorFromLocalStorage,

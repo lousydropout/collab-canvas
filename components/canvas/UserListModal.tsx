@@ -2,7 +2,7 @@
 
 import { X, User } from 'lucide-react'
 import { PresenceState } from '@/types/realtime'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface UserListModalProps {
   isOpen: boolean

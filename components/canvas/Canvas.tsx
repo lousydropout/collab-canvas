@@ -17,7 +17,7 @@ import AIChat from "@/components/ai/AIChat";
 import AIToggleButton from "@/components/ai/AIToggleButton";
 import { useCanvas } from "@/hooks/useCanvas";
 import { useOwnership } from "@/hooks/useOwnership";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 import { CanvasState } from "@/types/canvas";
 
 interface CanvasProps {
@@ -1279,11 +1279,27 @@ export default function Canvas({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Debug: Log all keydown events for Ctrl+D
+      if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
+        console.log(
+          "🔍 Ctrl+D pressed - Active element:",
+          document.activeElement
+        );
+        console.log("🔍 Active element tag:", document.activeElement?.tagName);
+        console.log(
+          "🔍 Active element class:",
+          document.activeElement?.className
+        );
+      }
+
       // Only handle shortcuts when no input is focused
       if (
         document.activeElement?.tagName === "INPUT" ||
         document.activeElement?.tagName === "TEXTAREA"
       ) {
+        if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
+          console.log("🚫 Ctrl+D blocked - input/textarea focused");
+        }
         return;
       }
 
@@ -1315,10 +1331,16 @@ export default function Canvas({
         }
       } else if (e.key === "d" && (e.ctrlKey || e.metaKey)) {
         // Duplicate selected objects (Ctrl/Cmd + D)
+        console.log(
+          "📋 Ctrl+D handler triggered - Selected objects:",
+          selectedObjects
+        );
         if (selectedObjects.length > 0) {
           e.preventDefault();
           duplicateObjects(selectedObjects);
           console.log("📋 Duplicated selected objects");
+        } else {
+          console.log("📋 No objects selected for duplication");
         }
       } else if (e.key === "Escape") {
         e.preventDefault();

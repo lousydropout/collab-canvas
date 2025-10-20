@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function Home() {
   const { user, loading } = useAuth()
@@ -26,6 +26,8 @@ export default function Home() {
       <div className="text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         <p className="mt-4 text-sm text-gray-600">Loading CollabCanvas...</p>
+        <p className="mt-1 text-xs text-gray-500">Initializing authentication</p>
+        <p className="mt-1 text-xs text-gray-400">If this takes more than 10 seconds, check the browser console for errors</p>
       </div>
     </div>
   )
